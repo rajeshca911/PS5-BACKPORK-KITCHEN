@@ -1,0 +1,25 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+out/
+
+# Visual Studio / IDE specific
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.pubxml.user
+*.vbproj.user
+
+# Tooling / Claude
+.claude/settings.local.json
+
+# Temporary files
+Temp.txt
+*.tmp
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db

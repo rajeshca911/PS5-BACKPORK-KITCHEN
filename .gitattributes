@@ -1,0 +1,7 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Ignore .NET build outputs anywhere
+**/bin/
+**/obj/
+.vs/
