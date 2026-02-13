@@ -24,6 +24,7 @@ Namespace Services.GameSearch
             RegisterProvider(New LeetxProvider())
             RegisterProvider(New TorrentGalaxyProvider())
             RegisterProvider(New PirateBayProvider())
+            RegisterProvider(New DLPSGameProvider())
 
             ' Load saved credentials
             LoadCredentials()
