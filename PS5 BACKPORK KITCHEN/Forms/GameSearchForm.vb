@@ -11,6 +11,7 @@ Public Class GameSearchForm
     Private _searchManager As GameSearchManager
     Private _cancellationTokenSource As CancellationTokenSource
     Private _searchResults As New List(Of GameSearchResult)
+    Private _lastDownloadFolder As String = ""
 
     ' UI Controls
     Private txtSearch As TextBox
@@ -235,6 +236,16 @@ Public Class GameSearchForm
         Dim mnuOpenMagnet As New ToolStripMenuItem("Open with Torrent Client")
         AddHandler mnuOpenMagnet.Click, AddressOf OpenMagnet_Click
         contextMenu.Items.Add(mnuOpenMagnet)
+
+        contextMenu.Items.Add(New ToolStripSeparator())
+
+        Dim mnuDownload As New ToolStripMenuItem("Download File")
+        AddHandler mnuDownload.Click, AddressOf DownloadFile_Click
+        contextMenu.Items.Add(mnuDownload)
+
+        Dim mnuCopyLinks As New ToolStripMenuItem("Copy Download Links")
+        AddHandler mnuCopyLinks.Click, AddressOf CopyDownloadLinks_Click
+        contextMenu.Items.Add(mnuCopyLinks)
     End Sub
 
     Private Sub SetupResultsGrid()
@@ -586,5 +597,152 @@ Public Class GameSearchForm
         Catch ex As Exception
             MessageBox.Show($"Failed to open magnet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
+    End Sub
+
+    Private Sub DownloadFile_Click(sender As Object, e As EventArgs)
+        Dim result = GetSelectedResult()
+        If result Is Nothing Then Return
+
+        ' Parse available download links from Uploader field
+        Dim links = DLPSGameProvider.ParseDownloadLinks(result.Uploader)
+
+        ' If no parsed links, try MagnetLink field (used for first hosting link)
+        If links.Count = 0 AndAlso Not String.IsNullOrEmpty(result.MagnetLink) Then
+            Dim hostName = DirectDownloadService.GetHostName(result.MagnetLink)
+            links.Add(New KeyValuePair(Of String, String)(hostName, result.MagnetLink))
+        End If
+
+        If links.Count = 0 Then
+            MessageBox.Show("No download links available for this result.", "Download",
+                          MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        ' If multiple links, let user pick the host
+        Dim selectedUrl As String = ""
+        If links.Count = 1 Then
+            selectedUrl = links(0).Value
+        Else
+            selectedUrl = ShowHostPicker(links)
+            If String.IsNullOrEmpty(selectedUrl) Then Return
+        End If
+
+        ' Pick output folder
+        Using fbd As New FolderBrowserDialog()
+            fbd.Description = "Select download folder"
+            If Not String.IsNullOrEmpty(_lastDownloadFolder) AndAlso IO.Directory.Exists(_lastDownloadFolder) Then
+                fbd.SelectedPath = _lastDownloadFolder
+            End If
+
+            If fbd.ShowDialog() <> DialogResult.OK Then Return
+            _lastDownloadFolder = fbd.SelectedPath
+        End Using
+
+        ' Show progress dialog
+        Using dlForm As New DownloadProgressForm(selectedUrl, _lastDownloadFolder)
+            Dim dlResult = dlForm.ShowDialog(Me)
+
+            If dlResult = DialogResult.OK AndAlso Not String.IsNullOrEmpty(dlForm.DownloadedFilePath) Then
+                lblStatus.Text = $"Download complete: {IO.Path.GetFileName(dlForm.DownloadedFilePath)}"
+                Dim msgResult = MessageBox.Show(
+                    $"Download complete!{vbCrLf}{vbCrLf}{dlForm.DownloadedFilePath}{vbCrLf}{vbCrLf}Open containing folder?",
+                    "Download Complete", MessageBoxButtons.YesNo, MessageBoxIcon.Information)
+
+                If msgResult = DialogResult.Yes Then
+                    Process.Start(New ProcessStartInfo With {
+                        .FileName = "explorer.exe",
+                        .Arguments = $"/select,""{dlForm.DownloadedFilePath}""",
+                        .UseShellExecute = True
+                    })
+                End If
+            ElseIf dlResult = DialogResult.Cancel Then
+                lblStatus.Text = "Download cancelled"
+            End If
+        End Using
+    End Sub
+
+    Private Function ShowHostPicker(links As List(Of KeyValuePair(Of String, String))) As String
+        Using picker As New Form()
+            picker.Text = "Select Download Host"
+            picker.Size = New Size(350, 300)
+            picker.StartPosition = FormStartPosition.CenterParent
+            picker.FormBorderStyle = FormBorderStyle.FixedDialog
+            picker.MaximizeBox = False
+            picker.MinimizeBox = False
+
+            Dim lbl As New Label With {
+                .Text = "Select a hosting service to download from:",
+                .Location = New Point(10, 10),
+                .Size = New Size(320, 20),
+                .Font = New Font("Segoe UI", 9)
+            }
+            picker.Controls.Add(lbl)
+
+            Dim lstHosts As New ListBox With {
+                .Location = New Point(10, 35),
+                .Size = New Size(315, 170),
+                .Font = New Font("Segoe UI", 10)
+            }
+            For Each link In links
+                lstHosts.Items.Add($"{link.Key} - {link.Value}")
+            Next
+            If lstHosts.Items.Count > 0 Then lstHosts.SelectedIndex = 0
+            picker.Controls.Add(lstHosts)
+
+            Dim btnOk As New Button With {
+                .Text = "Download",
+                .Location = New Point(150, 215),
+                .Size = New Size(85, 30),
+                .BackColor = Color.FromArgb(0, 122, 204),
+                .ForeColor = Color.White,
+                .FlatStyle = FlatStyle.Flat,
+                .DialogResult = DialogResult.OK
+            }
+            picker.Controls.Add(btnOk)
+            picker.AcceptButton = btnOk
+
+            Dim btnCancelPicker As New Button With {
+                .Text = "Cancel",
+                .Location = New Point(240, 215),
+                .Size = New Size(85, 30),
+                .FlatStyle = FlatStyle.Flat,
+                .DialogResult = DialogResult.Cancel
+            }
+            picker.Controls.Add(btnCancelPicker)
+            picker.CancelButton = btnCancelPicker
+
+            AddHandler lstHosts.DoubleClick, Sub(s, ev)
+                                                 picker.DialogResult = DialogResult.OK
+                                                 picker.Close()
+                                             End Sub
+
+            If picker.ShowDialog(Me) = DialogResult.OK AndAlso lstHosts.SelectedIndex >= 0 Then
+                Return links(lstHosts.SelectedIndex).Value
+            End If
+        End Using
+
+        Return ""
+    End Function
+
+    Private Sub CopyDownloadLinks_Click(sender As Object, e As EventArgs)
+        Dim result = GetSelectedResult()
+        If result Is Nothing Then Return
+
+        Dim links = DLPSGameProvider.ParseDownloadLinks(result.Uploader)
+
+        If links.Count = 0 AndAlso Not String.IsNullOrEmpty(result.MagnetLink) Then
+            Dim hostName = DirectDownloadService.GetHostName(result.MagnetLink)
+            links.Add(New KeyValuePair(Of String, String)(hostName, result.MagnetLink))
+        End If
+
+        If links.Count = 0 Then
+            MessageBox.Show("No download links available for this result.", "Copy Links",
+                          MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Dim text = String.Join(vbCrLf, links.Select(Function(l) $"{l.Key}: {l.Value}"))
+        Clipboard.SetText(text)
+        lblStatus.Text = $"Copied {links.Count} download link(s) to clipboard"
     End Sub
 End Class

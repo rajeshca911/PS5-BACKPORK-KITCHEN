@@ -454,6 +454,28 @@ Namespace Services.GameSearch
             Return False
         End Function
 
+        ''' <summary>
+        ''' Parses the Uploader field ("Host: URL | Host: URL") back into a list of (host, url) pairs.
+        ''' </summary>
+        Public Shared Function ParseDownloadLinks(uploaderField As String) As List(Of KeyValuePair(Of String, String))
+            Dim links As New List(Of KeyValuePair(Of String, String))
+            If String.IsNullOrEmpty(uploaderField) Then Return links
+
+            Dim parts = uploaderField.Split({" | "}, StringSplitOptions.RemoveEmptyEntries)
+            For Each part In parts
+                Dim colonIdx = part.IndexOf(": ")
+                If colonIdx > 0 Then
+                    Dim hostName = part.Substring(0, colonIdx).Trim()
+                    Dim url = part.Substring(colonIdx + 2).Trim()
+                    If Not String.IsNullOrEmpty(url) Then
+                        links.Add(New KeyValuePair(Of String, String)(hostName, url))
+                    End If
+                End If
+            Next
+
+            Return links
+        End Function
+
         ' ---- Internal classes ----
 
         Private Class DownloadLink
