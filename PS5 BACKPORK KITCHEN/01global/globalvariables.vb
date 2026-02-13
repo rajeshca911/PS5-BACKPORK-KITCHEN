@@ -27,7 +27,7 @@ Module globalvariables
     Public selfutil As String = "https://github.com/CyB1K/SelfUtil-Patched"
     Public Idlesauce As String = "https://gist.github.com/idlesauce/2ded24b7b5ff296f21792a8202542aaa"
     Public makeself As String = "https://github.com/ps5-payload-dev/sdk/blob/master/samples/install_app/make_fself.py"
-    Public fakelibJsonUrl As String = "https://raw.githubusercontent.com/rajeshca911/PS5-BACKPORK-KITCHEN/refs/heads/public-main/fakelibs.json"
+    Public fakelibJsonUrl As String = "https://raw.githubusercontent.com/rajeshca911/PS5-BACKPORK-KITCHEN/refs/heads/main/fakelibs.json"
     Public selectedfolder As String = ""
     Public selfutilpath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SelfUtil")
     Public backupDir As String = ""

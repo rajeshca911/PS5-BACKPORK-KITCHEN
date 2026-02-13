@@ -370,13 +370,13 @@ Public Class UFS2ImageForm
         txtDetails.AppendText($"Inode:      {node.InodeNumber}" & vbCrLf)
         txtDetails.AppendText($"Type:       {node.FileType}" & vbCrLf)
         txtDetails.AppendText($"Size:       {FormatSize(node.Size)}" & vbCrLf)
-        txtDetails.AppendText($"Permissions:{node.PermissionsString}" & vbCrLf)
+        txtDetails.AppendText($"Permissions: {node.PermissionsString}" & vbCrLf)
         txtDetails.AppendText($"Modified:   {If(node.ModifiedDate = DateTime.MinValue, "-", node.ModifiedDate.ToString())}" & vbCrLf)
 
         If node.IsDirectory Then
             txtDetails.AppendText(vbCrLf)
             txtDetails.AppendText($"Children:   {node.Children.Count}" & vbCrLf)
-            txtDetails.AppendText($"Total Files:{node.TotalFileCount}" & vbCrLf)
+            txtDetails.AppendText($"Total Files: {node.TotalFileCount}" & vbCrLf)
             txtDetails.AppendText($"Total Size: {FormatSize(node.TotalSize)}" & vbCrLf)
         End If
     End Sub
@@ -461,17 +461,23 @@ Public Class UFS2ImageForm
             If fbd.ShowDialog() <> DialogResult.OK Then Return
 
             Dim success = 0
+            Dim lastError = ""
             For Each item In selectedFiles
                 Try
                     Dim outputPath = Path.Combine(fbd.SelectedPath, item.Item2)
                     _reader.ExtractFile(item.Item1, outputPath)
                     success += 1
-                Catch
+                Catch ex As Exception
+                    lastError = $"{item.Item2}: {ex.Message}"
                 End Try
             Next
 
-            MessageBox.Show($"Extracted {success}/{selectedFiles.Count} file(s)", "Done",
-                            MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Dim msg = $"Extracted {success}/{selectedFiles.Count} file(s)"
+            If success < selectedFiles.Count AndAlso Not String.IsNullOrEmpty(lastError) Then
+                msg &= $"{vbCrLf}{vbCrLf}Last error: {lastError}"
+            End If
+            MessageBox.Show(msg, "Done", MessageBoxButtons.OK,
+                            If(success = selectedFiles.Count, MessageBoxIcon.Information, MessageBoxIcon.Warning))
         End Using
     End Sub
 
@@ -555,21 +561,89 @@ Public Class UFS2ImageForm
     Private Sub BtnBuildFPKG_Click(sender As Object, e As EventArgs)
         If _reader Is Nothing OrElse _fileTree Is Nothing Then Return
 
-        ' Create a default config from the image filename
-        Dim imageName = Path.GetFileNameWithoutExtension(_currentImagePath)
-        Dim config As New FPKGConfig With {
-            .ContentId = $"IV0000-{imageName.Substring(0, Math.Min(9, imageName.Length)).ToUpperInvariant().PadRight(9, "0"c)}_00-{imageName.PadRight(16, "0"c).Substring(0, 16).ToUpperInvariant()}",
-            .Title = imageName,
-            .TitleId = imageName.Substring(0, Math.Min(9, imageName.Length)).ToUpperInvariant().PadRight(9, "0"c)
-        }
+        ' First extract all files from the UFS2 image to a temporary folder
+        Dim tempFolder = Path.Combine(Path.GetTempPath(), $"UFS2_FPKG_{Guid.NewGuid():N}")
+        Try
+            Directory.CreateDirectory(tempFolder)
 
-        Using builderForm As New FPKGBuilderForm(_currentImagePath, config)
-            builderForm.ShowDialog(Me)
+            lblStatus.Text = "Extracting files from UFS2 image..."
+            progressBar.Visible = True
+            progressBar.Value = 0
+            progressBar.Maximum = 100
+            Application.DoEvents()
 
-            If builderForm.BuildSucceeded Then
-                lblStatus.Text = $"FPKG built: {Path.GetFileName(builderForm.OutputFilePath)}"
+            Dim progressReporter = New Progress(Of Integer)(
+                Sub(pct)
+                    progressBar.Value = Math.Min(pct, 100)
+                    lblStatus.Text = $"Extracting files... {pct}%"
+                    Application.DoEvents()
+                End Sub)
+
+            _reader.ExtractAll(_fileTree, tempFolder, progressReporter)
+
+            progressBar.Visible = False
+
+            ' Check that files were actually extracted
+            Dim extractedFiles = Directory.GetFiles(tempFolder, "*", SearchOption.AllDirectories)
+            If extractedFiles.Length = 0 Then
+                MessageBox.Show("No files were extracted from the UFS2 image.", "Error",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return
             End If
-        End Using
+
+            lblStatus.Text = $"Extracted {extractedFiles.Length} files. Opening FPKG Builder..."
+
+            ' Create a default config from the image filename
+            Dim imageName = Path.GetFileNameWithoutExtension(_currentImagePath)
+            ' Sanitize for Content ID: only alphanumeric characters
+            Dim sanitized = New String(imageName.Where(Function(c) Char.IsLetterOrDigit(c)).ToArray()).ToUpperInvariant()
+            If String.IsNullOrEmpty(sanitized) Then sanitized = "GAME"
+
+            Dim config As New FPKGConfig With {
+                .ContentId = $"IV0000-{sanitized.Substring(0, Math.Min(9, sanitized.Length)).PadRight(9, "0"c)}_00-{sanitized.PadRight(16, "0"c).Substring(0, 16)}",
+                .Title = imageName,
+                .TitleId = sanitized.Substring(0, Math.Min(9, sanitized.Length)).PadRight(9, "0"c)
+            }
+
+            ' Look for icon0.png in extracted files
+            Dim iconFile = extractedFiles.FirstOrDefault(Function(f) Path.GetFileName(f).Equals("icon0.png", StringComparison.OrdinalIgnoreCase))
+            If Not String.IsNullOrEmpty(iconFile) Then
+                config.IconPath = iconFile
+            End If
+
+            ' Look for pic1.png (background) in extracted files
+            Dim bgFile = extractedFiles.FirstOrDefault(Function(f) Path.GetFileName(f).Equals("pic1.png", StringComparison.OrdinalIgnoreCase))
+            If Not String.IsNullOrEmpty(bgFile) Then
+                config.BackgroundPath = bgFile
+            End If
+
+            ' Now open FPKG Builder with the extracted folder
+            Using builderForm As New FPKGBuilderForm(tempFolder, config)
+                builderForm.ShowDialog(Me)
+
+                If builderForm.BuildSucceeded Then
+                    lblStatus.Text = $"FPKG built: {Path.GetFileName(builderForm.OutputFilePath)}"
+                Else
+                    lblStatus.Text = "FPKG build cancelled or failed"
+                End If
+            End Using
+
+        Catch ex As Exception
+            progressBar.Visible = False
+            lblStatus.Text = "FPKG build failed"
+            MessageBox.Show($"Error building FPKG: {ex.Message}", "Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error)
+        Finally
+            ' Clean up temp folder
+            progressBar.Visible = False
+            Try
+                If Directory.Exists(tempFolder) Then
+                    Directory.Delete(tempFolder, True)
+                End If
+            Catch
+                ' Cleanup failure is non-critical
+            End Try
+        End Try
     End Sub
 
     ' ===== SEARCH =====
