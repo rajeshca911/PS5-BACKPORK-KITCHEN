@@ -1,25 +1,84 @@
+# =========================
 # Build outputs
+# =========================
 [Bb]in/
 [Oo]bj/
 out/
+publish/
+artifacts/
 
-# Visual Studio / IDE specific
+# =========================
+# Visual Studio / IDE
+# =========================
 .vs/
+.idea/
+.vscode/
+
 *.user
 *.userosscache
 *.sln.docstates
 *.suo
+*.cache
 *.pubxml.user
 *.vbproj.user
 
-# Tooling / Claude
-.claude/settings.local.json
+# =========================
+# NuGet
+# =========================
+packages/
+*.nupkg
+.nuget/
 
-# Temporary files
+# =========================
+# Test / Coverage
+# =========================
+TestResults/
+coverage/
+
+# =========================
+# Local config / secrets
+# =========================
+appsettings.Development.json
+appsettings.Local.json
+*.local.json
+
+# =========================
+# Tooling / Claude / AI
+# =========================
+.claude/
+.ai/
+.prompt/
+.cursor/
+
+# =========================
+# Logs & temp
+# =========================
 Temp.txt
 *.tmp
 *.log
+*.bak
+*.cache
 
-# OS generated files
+# =========================
+# Downloaded runtime files
+# (important for your project)
+# =========================
+downloads/
+archives/
+cache/
+runtime/
+extracted/
+
+# =========================
+# OS generated
+# =========================
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# =========================
+# GitHub / packaging leftovers
+# =========================
+*.zip
+*.7z
+*.rar
