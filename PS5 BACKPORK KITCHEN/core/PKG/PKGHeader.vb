@@ -27,64 +27,73 @@ Public Class PKGHeader
     ''' The reader should be positioned at the start of the file.
     ''' </summary>
     Public Sub Load(br As BinaryReader)
+        Dim fileLength = br.BaseStream.Length
+        If fileLength < &H100 Then
+            Throw New InvalidOperationException("File is too small to be a valid PKG.")
+        End If
+
         br.BaseStream.Seek(0, SeekOrigin.Begin)
 
-        ' Magic (4 bytes, big-endian)
+        ' Magic (4 bytes, big-endian) at 0x00
         Magic = ReadUInt32BE(br)
         If Magic <> PKGConstants.PKG_MAGIC Then
             Throw New InvalidOperationException(
                 $"Invalid PKG magic: expected 0x{PKGConstants.PKG_MAGIC:X8}, got 0x{Magic:X8}")
         End If
 
-        ' Skip to flags at offset 0x08
-        br.BaseStream.Seek(PKGConstants.PKG_FLAGS_OFFSET, SeekOrigin.Begin)
+        ' Flags at 0x04
         Flags = ReadUInt32BE(br)
 
-        ' Skip 4 bytes padding
-        br.ReadBytes(4)
+        ' Skip 0x08-0x0F (unknown + file_count)
+        br.BaseStream.Seek(&H10, SeekOrigin.Begin)
 
-        ' Entry count at offset 0x10
+        ' Entry count at 0x10 (4 bytes)
         EntryCount = ReadUInt32BE(br)
 
-        ' Skip 4 bytes
-        br.ReadBytes(4)
+        ' Skip sc_entry_count (2 bytes) + entry_count_2 (2 bytes) at 0x14-0x17
+        br.BaseStream.Seek(&H18, SeekOrigin.Begin)
 
-        ' Table offset at offset 0x18
-        TableOffset = ReadUInt64BE(br)
+        ' Table offset at 0x18 (4 bytes, NOT 8)
+        TableOffset = ReadUInt32BE(br)
 
-        ' Entry data size at offset 0x20
-        EntryDataSize = ReadUInt64BE(br)
+        ' Entry data size at 0x1C (4 bytes, NOT 8)
+        EntryDataSize = ReadUInt32BE(br)
 
-        ' Body offset at offset 0x28
+        ' Body offset at 0x20 (8 bytes)
         BodyOffset = ReadUInt64BE(br)
 
-        ' Body size at offset 0x30
+        ' Body size at 0x28 (8 bytes)
         BodySize = ReadUInt64BE(br)
 
-        ' Skip to content offset at 0x40
-        br.BaseStream.Seek(&H38, SeekOrigin.Begin)
-        br.ReadBytes(8) ' padding
+        ' Content offset at 0x30 (8 bytes)
         ContentOffset = ReadUInt64BE(br)
+
+        ' Content size at 0x38 (8 bytes)
         ContentSize = ReadUInt64BE(br)
 
-        ' Content ID at offset 0x40 is actually a 36-byte ASCII string
-        ' It's at a fixed position in the header
+        ' Content ID at 0x40 (36 bytes ASCII, null-padded)
         br.BaseStream.Seek(&H40, SeekOrigin.Begin)
-        Dim contentIdBytes = br.ReadBytes(48)
+        Dim contentIdBytes = br.ReadBytes(36)
         ContentId = Encoding.ASCII.GetString(contentIdBytes).TrimEnd(ChrW(0))
 
-        ' DRM type at offset 0x70
-        br.BaseStream.Seek(PKGConstants.PKG_DRM_TYPE_OFFSET, SeekOrigin.Begin)
+        ' DRM type at 0x68 (4 bytes)
+        br.BaseStream.Seek(&H68, SeekOrigin.Begin)
         DrmType = ReadUInt32BE(br)
 
-        ' Content type at offset 0x74
+        ' Content type at 0x6C (4 bytes)
         ContentType = ReadUInt32BE(br)
 
-        ' Content flags at offset 0x78
+        ' Content flags at 0x70 (4 bytes)
         ContentFlags = ReadUInt32BE(br)
 
         ' Total package size
-        PackageSize = br.BaseStream.Length
+        PackageSize = fileLength
+
+        ' Validate table offset is within file bounds
+        If TableOffset > CULng(fileLength) Then
+            Throw New InvalidOperationException(
+                $"Invalid table offset 0x{TableOffset:X} exceeds file size {fileLength}.")
+        End If
     End Sub
 
     ''' <summary>

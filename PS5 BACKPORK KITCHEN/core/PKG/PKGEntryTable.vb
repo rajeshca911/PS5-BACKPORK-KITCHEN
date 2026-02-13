@@ -52,9 +52,32 @@ Public Class PKGEntryTable
     Public Sub Load(br As BinaryReader, tableOffset As ULong, entryCount As UInteger)
         Entries.Clear()
 
+        ' Validate offset is within file bounds
+        If CLng(tableOffset) >= br.BaseStream.Length Then
+            Throw New InvalidOperationException(
+                $"Entry table offset 0x{tableOffset:X} is beyond file size.")
+        End If
+
+        ' Sanity check entry count (avoid allocating millions of entries for corrupt files)
+        If entryCount > 10000 Then
+            Throw New InvalidOperationException(
+                $"Entry count {entryCount} seems too large, file may be corrupt.")
+        End If
+
         br.BaseStream.Seek(CLng(tableOffset), SeekOrigin.Begin)
 
+        ' Each entry is 32 bytes; check we have enough data
+        Dim requiredBytes = CLng(entryCount) * PKGConstants.ENTRY_SIZE
+        If CLng(tableOffset) + requiredBytes > br.BaseStream.Length Then
+            ' Adjust count to what we can actually read
+            entryCount = CUInt((br.BaseStream.Length - CLng(tableOffset)) \ PKGConstants.ENTRY_SIZE)
+        End If
+
         For i As UInteger = 0 To entryCount - 1UI
+            If br.BaseStream.Position + PKGConstants.ENTRY_SIZE > br.BaseStream.Length Then
+                Exit For
+            End If
+
             Dim entry As New PKGEntry()
             entry.Id = ReadUInt32BE(br)
             entry.FilenameOffset = ReadUInt32BE(br)

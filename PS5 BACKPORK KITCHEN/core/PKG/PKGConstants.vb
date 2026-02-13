@@ -9,18 +9,18 @@ Public Module PKGConstants
 
     ' ---- Header Offsets ----
     Public Const HEADER_SIZE As Integer = &H2000
-    Public Const PKG_FLAGS_OFFSET As Integer = &H8
+    Public Const PKG_FLAGS_OFFSET As Integer = &H4
     Public Const PKG_ENTRY_COUNT_OFFSET As Integer = &H10
-    Public Const PKG_TABLE_OFFSET_OFFSET As Integer = &H18
-    Public Const PKG_ENTRY_DATA_SIZE_OFFSET As Integer = &H20
-    Public Const PKG_BODY_OFFSET_OFFSET As Integer = &H28
-    Public Const PKG_BODY_SIZE_OFFSET As Integer = &H30
-    Public Const PKG_CONTENT_OFFSET_OFFSET As Integer = &H40
-    Public Const PKG_CONTENT_SIZE_OFFSET As Integer = &H48
-    Public Const PKG_CONTENT_ID_OFFSET As Integer = &H40
-    Public Const PKG_DRM_TYPE_OFFSET As Integer = &H70
-    Public Const PKG_CONTENT_TYPE_OFFSET As Integer = &H74
-    Public Const PKG_CONTENT_FLAGS_OFFSET As Integer = &H78
+    Public Const PKG_TABLE_OFFSET_OFFSET As Integer = &H18       ' 4 bytes
+    Public Const PKG_ENTRY_DATA_SIZE_OFFSET As Integer = &H1C    ' 4 bytes
+    Public Const PKG_BODY_OFFSET_OFFSET As Integer = &H20        ' 8 bytes
+    Public Const PKG_BODY_SIZE_OFFSET As Integer = &H28          ' 8 bytes
+    Public Const PKG_CONTENT_OFFSET_OFFSET As Integer = &H30     ' 8 bytes
+    Public Const PKG_CONTENT_SIZE_OFFSET As Integer = &H38       ' 8 bytes
+    Public Const PKG_CONTENT_ID_OFFSET As Integer = &H40         ' 36 bytes
+    Public Const PKG_DRM_TYPE_OFFSET As Integer = &H68
+    Public Const PKG_CONTENT_TYPE_OFFSET As Integer = &H6C
+    Public Const PKG_CONTENT_FLAGS_OFFSET As Integer = &H70
 
     ' ---- Entry Table ----
     Public Const ENTRY_SIZE As Integer = 32

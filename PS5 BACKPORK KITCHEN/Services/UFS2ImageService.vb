@@ -93,8 +93,8 @@ Public Class UFS2ImageService
         Try
             reader.ExtractAll(rootNode, outputDir, progress)
             Return True
-        Catch
-            Return False
+        Catch ex As Exception
+            Throw New Exception($"Failed to extract files: {ex.Message}", ex)
         End Try
     End Function
 
