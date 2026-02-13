@@ -55,6 +55,8 @@ Partial Class Form1
         btnBatchProcess = New Button()
         btnElfInspector = New Button()
         btnShowStatistics = New Button()
+        btnUFS2Image = New Button()
+        btnPkgManager = New Button()
         lblDragDropHint = New ReaLTaiizor.Controls.MoonLabel()
         chklibcpatch = New ReaLTaiizor.Controls.FoxCheckBoxEdit()
         TableLayoutPanel1.SuspendLayout()
@@ -444,13 +446,16 @@ Partial Class Form1
         TableLayoutPanel6.Controls.Add(btnBatchProcess, 0, 1)
         TableLayoutPanel6.Controls.Add(btnElfInspector, 1, 0)
         TableLayoutPanel6.Controls.Add(btnShowStatistics, 0, 0)
+        TableLayoutPanel6.Controls.Add(btnUFS2Image, 0, 3)
+        TableLayoutPanel6.Controls.Add(btnPkgManager, 1, 3)
         TableLayoutPanel6.Location = New Point(30, 325)
         TableLayoutPanel6.Name = "TableLayoutPanel6"
-        TableLayoutPanel6.RowCount = 3
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 50F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 50F))
+        TableLayoutPanel6.RowCount = 4
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
         TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 33F))
-        TableLayoutPanel6.Size = New Size(358, 99)
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 33.34F))
+        TableLayoutPanel6.Size = New Size(358, 132)
         TableLayoutPanel6.TabIndex = 23
         ' 
         ' Button5
@@ -537,9 +542,35 @@ Partial Class Form1
         btnShowStatistics.TabIndex = 0
         btnShowStatistics.Text = "Stats"
         btnShowStatistics.UseVisualStyleBackColor = False
-        ' 
+        '
+        ' btnUFS2Image
+        '
+        btnUFS2Image.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
+        btnUFS2Image.Dock = DockStyle.Fill
+        btnUFS2Image.FlatStyle = FlatStyle.System
+        btnUFS2Image.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        btnUFS2Image.ForeColor = Color.Black
+        btnUFS2Image.Name = "btnUFS2Image"
+        btnUFS2Image.Size = New Size(167, 27)
+        btnUFS2Image.TabIndex = 6
+        btnUFS2Image.Text = "btnUFS2Image"
+        btnUFS2Image.UseVisualStyleBackColor = False
+        '
+        ' btnPkgManager
+        '
+        btnPkgManager.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
+        btnPkgManager.Dock = DockStyle.Fill
+        btnPkgManager.FlatStyle = FlatStyle.System
+        btnPkgManager.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        btnPkgManager.ForeColor = Color.Black
+        btnPkgManager.Name = "btnPkgManager"
+        btnPkgManager.Size = New Size(179, 27)
+        btnPkgManager.TabIndex = 7
+        btnPkgManager.Text = "btnPkgManager"
+        btnPkgManager.UseVisualStyleBackColor = False
+        '
         ' lblDragDropHint
-        ' 
+        '
         lblDragDropHint.AutoSize = True
         lblDragDropHint.BackColor = Color.Transparent
         lblDragDropHint.ForeColor = Color.Gray
@@ -639,5 +670,7 @@ Partial Class Form1
     Friend WithEvents Label1 As Label
     Friend WithEvents cmbPs5Sdk As ReaLTaiizor.Controls.PoisonComboBox
     Friend WithEvents lblfw As Label
+    Friend WithEvents btnUFS2Image As Button
+    Friend WithEvents btnPkgManager As Button
 
 End Class
