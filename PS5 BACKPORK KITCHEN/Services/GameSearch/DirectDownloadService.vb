@@ -23,10 +23,16 @@ Namespace Services.GameSearch
     ''' </summary>
     Public Class DirectDownloadService
         Private ReadOnly _httpClient As HttpClient
+        Private ReadOnly _noRedirectClient As HttpClient
         Private ReadOnly _cookieContainer As CookieContainer
+
+        Private Const BROWSER_UA As String =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
         Public Sub New()
             _cookieContainer = New CookieContainer()
+
+            ' Standard client with auto-redirect (most hosts)
             Dim handler As New HttpClientHandler With {
                 .AllowAutoRedirect = True,
                 .AutomaticDecompression = DecompressionMethods.GZip Or DecompressionMethods.Deflate,
@@ -34,12 +40,25 @@ Namespace Services.GameSearch
                 .UseCookies = True
             }
             _httpClient = New HttpClient(handler)
-            _httpClient.DefaultRequestHeaders.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", BROWSER_UA)
             _httpClient.DefaultRequestHeaders.Add("Accept",
                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
             _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9")
             _httpClient.Timeout = TimeSpan.FromMinutes(30)
+
+            ' No-redirect client for hosts that need manual redirect handling (1fichier)
+            Dim noRedirectHandler As New HttpClientHandler With {
+                .AllowAutoRedirect = False,
+                .AutomaticDecompression = DecompressionMethods.GZip Or DecompressionMethods.Deflate,
+                .CookieContainer = _cookieContainer,
+                .UseCookies = True
+            }
+            _noRedirectClient = New HttpClient(noRedirectHandler)
+            _noRedirectClient.DefaultRequestHeaders.Add("User-Agent", BROWSER_UA)
+            _noRedirectClient.DefaultRequestHeaders.Add("Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            _noRedirectClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9")
+            _noRedirectClient.Timeout = TimeSpan.FromMinutes(30)
         End Sub
 
         ''' <summary>
@@ -199,74 +218,347 @@ Namespace Services.GameSearch
 
 #Region "VikingFile Handler"
         ''' <summary>
-        ''' Downloads from VikingFile - these are typically direct download links.
+        ''' Downloads from VikingFile using the API get-server endpoint.
+        ''' VikingFile landing pages use Cloudflare Turnstile CAPTCHA which blocks
+        ''' automated HTTP requests, so we use the API to resolve a download URL.
+        ''' Falls back to browser if all automated methods fail.
         ''' </summary>
         Private Async Function DownloadVikingFileAsync(url As String, outputFolder As String,
                                                         progress As IProgress(Of DownloadProgressInfo),
                                                         ct As Threading.CancellationToken) As Task(Of String)
-            progress?.Report(New DownloadProgressInfo With {.Status = "Connecting to VikingFile...", .FileName = ""})
+            progress?.Report(New DownloadProgressInfo With {.Status = "Resolving VikingFile link...", .FileName = ""})
 
-            Dim fileName = ExtractFileNameFromUrl(url)
+            ' Extract the file hash from the URL (e.g., vikingfile.com/f/HASH)
+            Dim fileHash = ""
+            Dim uri As New Uri(url)
+            Dim segments = uri.AbsolutePath.Trim("/"c).Split("/"c)
+            If segments.Length >= 2 AndAlso segments(0).ToLower() = "f" Then
+                fileHash = segments(1)
+            ElseIf segments.Length >= 1 Then
+                fileHash = segments(segments.Length - 1)
+            End If
+
+            If String.IsNullOrEmpty(fileHash) Then
+                Throw New Exception("Could not extract file hash from VikingFile URL.")
+            End If
+
+            Dim fileName = ""
+            Dim downloadUrl = ""
+
+            ' Strategy 1: Try the API get-server endpoint
+            Try
+                Dim apiContent As New FormUrlEncodedContent(New Dictionary(Of String, String) From {
+                    {"hash", fileHash}
+                })
+                Dim apiRequest As New HttpRequestMessage(HttpMethod.Post, "https://vikingfile.com/api/get-server")
+                apiRequest.Content = apiContent
+                apiRequest.Headers.Add("Origin", "https://vikingfile.com")
+                apiRequest.Headers.Referrer = New Uri("https://vikingfile.com/")
+
+                Dim apiResponse = Await _httpClient.SendAsync(apiRequest, ct)
+                If apiResponse.IsSuccessStatusCode Then
+                    Dim apiJson = Await apiResponse.Content.ReadAsStringAsync()
+
+                    ' Parse URL from response
+                    Dim urlMatch = Regex.Match(apiJson, """url""\s*:\s*""([^""]+)""")
+                    If urlMatch.Success Then
+                        downloadUrl = urlMatch.Groups(1).Value.Replace("\/", "/")
+                    End If
+
+                    ' Parse server from response
+                    If String.IsNullOrEmpty(downloadUrl) Then
+                        Dim serverMatch = Regex.Match(apiJson, """server""\s*:\s*""([^""]+)""")
+                        If serverMatch.Success Then
+                            Dim server = serverMatch.Groups(1).Value.Replace("\/", "/")
+                            downloadUrl = $"{server}/f/{fileHash}"
+                        End If
+                    End If
+
+                    ' Parse file name from response
+                    Dim nameMatch = Regex.Match(apiJson, """name""\s*:\s*""([^""]+)""")
+                    If nameMatch.Success Then
+                        fileName = nameMatch.Groups(1).Value
+                    End If
+                End If
+            Catch
+                ' API call failed, try next strategy
+            End Try
+
+            ' Strategy 2: Try check-file API for metadata, then construct download URL
+            If String.IsNullOrEmpty(downloadUrl) Then
+                Try
+                    Dim checkContent As New StringContent(
+                        $"{{""hash"":""{fileHash}""}}",
+                        Text.Encoding.UTF8, "application/json")
+                    Dim checkRequest As New HttpRequestMessage(HttpMethod.Post, "https://vikingfile.com/api/check-file")
+                    checkRequest.Content = checkContent
+                    checkRequest.Headers.Add("Origin", "https://vikingfile.com")
+
+                    Dim checkResponse = Await _httpClient.SendAsync(checkRequest, ct)
+                    If checkResponse.IsSuccessStatusCode Then
+                        Dim checkJson = Await checkResponse.Content.ReadAsStringAsync()
+                        Dim nameMatch = Regex.Match(checkJson, """name""\s*:\s*""([^""]+)""")
+                        If nameMatch.Success Then
+                            fileName = nameMatch.Groups(1).Value
+                        End If
+                    End If
+                Catch
+                End Try
+            End If
+
+            ' Strategy 3: Try direct GET on vik1ngfile.site (alternate CDN domain) with no-redirect
+            If String.IsNullOrEmpty(downloadUrl) Then
+                Try
+                    Dim cdnUrl = $"https://vik1ngfile.site/f/{fileHash}"
+                    Dim cdnRequest As New HttpRequestMessage(HttpMethod.Get, cdnUrl)
+                    cdnRequest.Headers.Referrer = New Uri("https://vikingfile.com/")
+                    Dim cdnResponse = Await _noRedirectClient.SendAsync(cdnRequest, ct)
+
+                    If CInt(cdnResponse.StatusCode) >= 300 AndAlso CInt(cdnResponse.StatusCode) < 400 Then
+                        Dim location = cdnResponse.Headers.Location?.ToString()
+                        If Not String.IsNullOrEmpty(location) Then
+                            If Not location.StartsWith("http") Then
+                                location = New Uri(New Uri(cdnUrl), location).ToString()
+                            End If
+                            ' If it redirects to another CDN/download URL, use it
+                            If Not location.Contains("turnstile") AndAlso Not location.Contains("challenge") Then
+                                downloadUrl = location
+                            End If
+                        End If
+                    ElseIf cdnResponse.IsSuccessStatusCode Then
+                        ' Check if the response is the actual file (not HTML)
+                        Dim contentType = cdnResponse.Content.Headers.ContentType?.MediaType
+                        If contentType IsNot Nothing AndAlso Not contentType.Contains("text/html") Then
+                            ' It's the actual file!
+                            If String.IsNullOrEmpty(fileName) Then fileName = ExtractFileNameFromUrl(url)
+                            Dim headerFn = ExtractFileNameFromResponse(cdnResponse)
+                            If Not String.IsNullOrEmpty(headerFn) Then fileName = headerFn
+
+                            progress?.Report(New DownloadProgressInfo With {.Status = "Downloading from VikingFile...", .FileName = fileName})
+                            Dim outputPath = GetSafeOutputPath(outputFolder, fileName)
+                            Await StreamResponseToFileAsync(cdnResponse, outputPath, progress, ct)
+                            Return outputPath
+                        End If
+
+                        ' HTML page - try to parse a download link from it
+                        Dim html = Await cdnResponse.Content.ReadAsStringAsync()
+                        Dim dlMatch = Regex.Match(html, "href=""([^""]+)""\s*[^>]*(?:download|btn-download)", RegexOptions.IgnoreCase)
+                        If dlMatch.Success Then
+                            downloadUrl = WebUtility.HtmlDecode(dlMatch.Groups(1).Value)
+                            If Not downloadUrl.StartsWith("http") Then
+                                downloadUrl = New Uri(New Uri(cdnUrl), downloadUrl).ToString()
+                            End If
+                        End If
+                    End If
+                Catch
+                End Try
+            End If
+
+            ' If we still have no download URL, Cloudflare CAPTCHA is blocking us
+            If String.IsNullOrEmpty(downloadUrl) Then
+                Throw New Exception(
+                    "VikingFile uses Cloudflare Turnstile CAPTCHA which blocks automated downloads. " &
+                    "Please use 'Open Details Page' to download manually in your browser.")
+            End If
+
+            ' Download the resolved URL
+            If String.IsNullOrEmpty(fileName) Then fileName = ExtractFileNameFromUrl(downloadUrl)
             progress?.Report(New DownloadProgressInfo With {.Status = "Downloading from VikingFile...", .FileName = fileName})
 
-            Return Await StreamDownloadAsync(url, outputFolder, fileName, progress, ct)
+            Dim dlReq As New HttpRequestMessage(HttpMethod.Get, downloadUrl)
+            dlReq.Headers.Referrer = New Uri("https://vikingfile.com/")
+            Dim dlResp = Await _httpClient.SendAsync(dlReq, HttpCompletionOption.ResponseHeadersRead, ct)
+            dlResp.EnsureSuccessStatusCode()
+
+            ValidateDownloadResponse(dlResp)
+
+            Dim finalName = ExtractFileNameFromResponse(dlResp)
+            If Not String.IsNullOrEmpty(finalName) Then fileName = finalName
+
+            Dim outPath = GetSafeOutputPath(outputFolder, fileName)
+            Await StreamResponseToFileAsync(dlResp, outPath, progress, ct)
+            Return outPath
         End Function
 #End Region
 
 #Region "1fichier Handler"
         ''' <summary>
-        ''' Downloads from 1fichier by POST-ing the free download form.
+        ''' Downloads from 1fichier using manual redirect handling.
+        ''' Uses _noRedirectClient to capture 302 Location headers that contain
+        ''' the direct CDN download URL. Multiple POST strategies are attempted.
         ''' </summary>
         Private Async Function Download1FichierAsync(url As String, outputFolder As String,
                                                       progress As IProgress(Of DownloadProgressInfo),
                                                       ct As Threading.CancellationToken) As Task(Of String)
             progress?.Report(New DownloadProgressInfo With {.Status = "Resolving 1fichier link...", .FileName = ""})
 
-            ' Step 1: GET the page first (sets cookies)
-            Dim pageResponse = Await _httpClient.GetAsync(url, ct)
+            ' Force English page via cookie
+            _cookieContainer.Add(New Uri("https://1fichier.com"), New Cookie("LG", "en"))
+
+            ' Step 1: GET the page with NO auto-redirect to check for immediate 302
+            Dim getRequest As New HttpRequestMessage(HttpMethod.Get, url)
+            getRequest.Headers.Referrer = New Uri("https://1fichier.com/")
+            Dim pageResponse = Await _noRedirectClient.SendAsync(getRequest, ct)
+
+            ' If 302 → Location header IS the direct download link (hotlink)
+            If CInt(pageResponse.StatusCode) >= 300 AndAlso CInt(pageResponse.StatusCode) < 400 Then
+                Dim locationUrl = pageResponse.Headers.Location?.ToString()
+                If Not String.IsNullOrEmpty(locationUrl) Then
+                    If Not locationUrl.StartsWith("http") Then
+                        locationUrl = New Uri(New Uri(url), locationUrl).ToString()
+                    End If
+                    Dim fn = ExtractFileNameFromUrl(locationUrl)
+                    progress?.Report(New DownloadProgressInfo With {.Status = "Downloading from 1fichier...", .FileName = fn})
+                    Return Await StreamDownloadAsync(locationUrl, outputFolder, fn, progress, ct)
+                End If
+            End If
+
+            ' Got 200 - read the HTML page
             Dim pageHtml = Await pageResponse.Content.ReadAsStringAsync()
 
-            ' Check if there's a wait time
-            Dim waitMatch = Regex.Match(pageHtml, "You must wait (\d+) minutes", RegexOptions.IgnoreCase)
+            ' Check for errors
+            If pageHtml.Contains("file could not be found") OrElse pageHtml.Contains("has been removed") Then
+                Throw New Exception("File not found on 1fichier. It may have been deleted.")
+            End If
+
+            ' Check for wait timer
+            Dim waitMatch = Regex.Match(pageHtml, "(?:must wait|devez attendre)\D*(\d+)\s*min", RegexOptions.IgnoreCase)
             If waitMatch.Success Then
-                Throw New Exception($"1fichier rate limit: wait {waitMatch.Groups(1).Value} minutes before downloading.")
+                Throw New Exception($"1fichier rate limit: please wait {waitMatch.Groups(1).Value} minutes before downloading.")
             End If
 
-            ' Step 2: POST to get direct download link
-            Dim postContent As New FormUrlEncodedContent(New Dictionary(Of String, String) From {
-                {"did", "0"},
-                {"dlssl", "SSL Download"}
-            })
+            ' Check for JS countdown timer
+            Dim countdownMatch = Regex.Match(pageHtml, "var\s+count\s*=\s*(\d+)", RegexOptions.IgnoreCase)
+            Dim waitSeconds = If(countdownMatch.Success, Math.Min(Integer.Parse(countdownMatch.Groups(1).Value) + 1, 90), 3)
 
-            ' Small delay before POST (some hosts need this)
-            Await Task.Delay(1000, ct)
-
-            Dim postResponse = Await _httpClient.PostAsync(url, postContent, ct)
-            Dim postHtml = Await postResponse.Content.ReadAsStringAsync()
-
-            ' Parse redirect or direct download link
-            Dim dlMatch = Regex.Match(postHtml, "href=""(https?://[^""]*\.1fichier\.com/[^""]+)""", RegexOptions.IgnoreCase)
-            If Not dlMatch.Success Then
-                ' Try alternative pattern
-                dlMatch = Regex.Match(postHtml, """(https?://\w+\.1fichier\.com/[^""]+)""", RegexOptions.IgnoreCase)
+            ' Extract hidden adz field if present
+            Dim adzValue = ""
+            Dim adzMatch = Regex.Match(pageHtml, "name=""adz""\s+value=""([^""]*?)""", RegexOptions.IgnoreCase)
+            If adzMatch.Success Then
+                adzValue = adzMatch.Groups(1).Value
             End If
 
-            If Not dlMatch.Success Then
-                ' Check if we got redirected to the download directly
-                If postResponse.Headers.Location IsNot Nothing Then
-                    Dim redirectUrl = postResponse.Headers.Location.ToString()
-                    Dim fileName2 = ExtractFileNameFromUrl(redirectUrl)
-                    progress?.Report(New DownloadProgressInfo With {.Status = "Downloading from 1fichier...", .FileName = fileName2})
-                    Return Await StreamDownloadAsync(redirectUrl, outputFolder, fileName2, progress, ct)
+            ' Wait for countdown
+            progress?.Report(New DownloadProgressInfo With {.Status = $"Waiting {waitSeconds}s for 1fichier...", .FileName = ""})
+            Await Task.Delay(waitSeconds * 1000, ct)
+
+            ' Step 2: Try multiple POST strategies to get the download link
+            Dim directUrl = ""
+
+            ' Strategy A: POST with dl_no_ssl=on (most common free download approach)
+            directUrl = Await Try1FichierPost(url, New Dictionary(Of String, String) From {
+                {"dl_no_ssl", "on"}, {"dlinline", "on"}
+            }, ct)
+
+            ' Strategy B: POST with adz field if found
+            If String.IsNullOrEmpty(directUrl) AndAlso Not String.IsNullOrEmpty(adzValue) Then
+                directUrl = Await Try1FichierPost(url, New Dictionary(Of String, String) From {
+                    {"submit", "Download"}, {"adz", adzValue}
+                }, ct)
+            End If
+
+            ' Strategy C: POST with minimal body
+            If String.IsNullOrEmpty(directUrl) Then
+                directUrl = Await Try1FichierPost(url, New Dictionary(Of String, String) From {
+                    {"a", "1"}
+                }, ct)
+            End If
+
+            ' Strategy D: POST empty body (JDownloader approach)
+            If String.IsNullOrEmpty(directUrl) Then
+                directUrl = Await Try1FichierPost(url, New Dictionary(Of String, String)(), ct)
+            End If
+
+            If String.IsNullOrEmpty(directUrl) Then
+                Throw New Exception(
+                    "Could not resolve 1fichier download link after trying all strategies. " &
+                    "The file may require a premium account or the site may have changed.")
+            End If
+
+            Dim fileName = ExtractFileNameFromUrl(directUrl)
+            progress?.Report(New DownloadProgressInfo With {.Status = "Downloading from 1fichier...", .FileName = fileName})
+
+            ' Step 3: Download from the resolved direct URL with Referer
+            Dim dlRequest As New HttpRequestMessage(HttpMethod.Get, directUrl)
+            dlRequest.Headers.Referrer = New Uri(url)
+            Dim dlResponse = Await _httpClient.SendAsync(dlRequest, HttpCompletionOption.ResponseHeadersRead, ct)
+            dlResponse.EnsureSuccessStatusCode()
+
+            ' Validate we're getting a real file, not HTML
+            ValidateDownloadResponse(dlResponse)
+
+            Dim headerFileName = ExtractFileNameFromResponse(dlResponse)
+            If Not String.IsNullOrEmpty(headerFileName) Then fileName = headerFileName
+
+            Dim outputPath = GetSafeOutputPath(outputFolder, fileName)
+            Await StreamResponseToFileAsync(dlResponse, outputPath, progress, ct)
+            Return outputPath
+        End Function
+
+        ''' <summary>
+        ''' Attempts a single 1fichier POST strategy and returns the direct URL or empty string.
+        ''' Uses _noRedirectClient to capture 302 Location headers.
+        ''' </summary>
+        Private Async Function Try1FichierPost(url As String, formFields As Dictionary(Of String, String),
+                                                ct As Threading.CancellationToken) As Task(Of String)
+            Try
+                Dim postRequest As New HttpRequestMessage(HttpMethod.Post, url)
+                postRequest.Headers.Referrer = New Uri(url)
+                postRequest.Content = New FormUrlEncodedContent(formFields)
+
+                Dim postResponse = Await _noRedirectClient.SendAsync(postRequest, ct)
+
+                ' Check for 302 redirect - Location header IS the direct download URL
+                If CInt(postResponse.StatusCode) >= 300 AndAlso CInt(postResponse.StatusCode) < 400 Then
+                    Dim locationUrl = postResponse.Headers.Location?.ToString()
+                    If Not String.IsNullOrEmpty(locationUrl) Then
+                        If Not locationUrl.StartsWith("http") Then
+                            locationUrl = New Uri(New Uri(url), locationUrl).ToString()
+                        End If
+                        ' Verify it looks like a CDN/download URL, not a page redirect
+                        If locationUrl.Contains("cdn") OrElse locationUrl.Contains("1fichier.com/") OrElse
+                           Not locationUrl.Contains("?") Then
+                            Return locationUrl
+                        End If
+                    End If
                 End If
-                Throw New Exception("Could not find 1fichier download link. The file may require a premium account.")
-            End If
 
-            Dim directUrl = WebUtility.HtmlDecode(dlMatch.Groups(1).Value)
-            Dim fileNameFromUrl = ExtractFileNameFromUrl(directUrl)
-            progress?.Report(New DownloadProgressInfo With {.Status = "Downloading from 1fichier...", .FileName = fileNameFromUrl})
+                ' Check response body for download link (HTML with <a class="ok"> or similar)
+                Dim responseHtml = Await postResponse.Content.ReadAsStringAsync()
 
-            Return Await StreamDownloadAsync(directUrl, outputFolder, fileNameFromUrl, progress, ct)
+                ' Pattern 1: <a class="ok btn-general btn-orange" href="...">
+                Dim dlMatch = Regex.Match(responseHtml, "<a[^>]*class=""[^""]*ok[^""]*""[^>]*href=""([^""]+)""", RegexOptions.IgnoreCase)
+                If dlMatch.Success Then
+                    Return WebUtility.HtmlDecode(dlMatch.Groups(1).Value)
+                End If
+
+                ' Pattern 2: Click here to download
+                dlMatch = Regex.Match(responseHtml, "<a\s+href=""([^""]+)""[^>]*>\s*Click here to download", RegexOptions.IgnoreCase)
+                If dlMatch.Success Then
+                    Return WebUtility.HtmlDecode(dlMatch.Groups(1).Value)
+                End If
+
+                ' Pattern 3: Any CDN-like 1fichier URL
+                dlMatch = Regex.Match(responseHtml, """(https?://\w+\.1fichier\.com/[^""]+)""", RegexOptions.IgnoreCase)
+                If dlMatch.Success Then
+                    Dim candidate = WebUtility.HtmlDecode(dlMatch.Groups(1).Value)
+                    ' Skip if it's just the same page URL
+                    If Not candidate.Contains("?") Then
+                        Return candidate
+                    End If
+                End If
+
+                ' Pattern 4: window.location redirect in JavaScript
+                dlMatch = Regex.Match(responseHtml, "window\.location\s*=\s*['""]([^'""]+)['""]", RegexOptions.IgnoreCase)
+                If dlMatch.Success Then
+                    Return WebUtility.HtmlDecode(dlMatch.Groups(1).Value)
+                End If
+
+            Catch
+                ' Strategy failed, return empty to try next
+            End Try
+
+            Return ""
         End Function
 #End Region
 
@@ -518,10 +810,19 @@ Namespace Services.GameSearch
         Private Async Function StreamDownloadAsync(url As String, outputFolder As String,
                                                     fileName As String,
                                                     progress As IProgress(Of DownloadProgressInfo),
-                                                    ct As Threading.CancellationToken) As Task(Of String)
+                                                    ct As Threading.CancellationToken,
+                                                    Optional referer As String = Nothing) As Task(Of String)
 
-            Dim response = Await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct)
+            Dim request As New HttpRequestMessage(HttpMethod.Get, url)
+            If Not String.IsNullOrEmpty(referer) Then
+                request.Headers.Referrer = New Uri(referer)
+            End If
+
+            Dim response = Await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
             response.EnsureSuccessStatusCode()
+
+            ' Validate we're getting a real file, not HTML/favicon
+            ValidateDownloadResponse(response)
 
             ' Try to get filename from Content-Disposition header
             Dim headerFileName = ExtractFileNameFromResponse(response)
@@ -599,6 +900,37 @@ Namespace Services.GameSearch
 #End Region
 
 #Region "Utility Methods"
+        ''' <summary>
+        ''' Validates that a download response contains actual file content,
+        ''' not an HTML page, favicon, or other small non-file content.
+        ''' </summary>
+        Private Shared Sub ValidateDownloadResponse(response As HttpResponseMessage)
+            Dim contentType = response.Content.Headers.ContentType?.MediaType?.ToLower()
+            Dim contentLength = response.Content.Headers.ContentLength
+
+            ' Reject HTML responses - we're downloading a file, not a page
+            If contentType IsNot Nothing AndAlso
+               (contentType.Contains("text/html") OrElse contentType.Contains("text/xml")) Then
+                Throw New Exception(
+                    "The server returned an HTML page instead of a file. " &
+                    "The download link may have expired or requires browser interaction. " &
+                    "Please use 'Open Details Page' to download manually.")
+            End If
+
+            ' Reject suspiciously small responses (favicon, error pages, etc.)
+            ' Game PKGs are typically > 100MB; even small files should be > 100KB
+            If contentLength.HasValue AndAlso contentLength.Value < 50000 Then
+                ' Check if it could be an image/favicon
+                If contentType IsNot Nothing AndAlso
+                   (contentType.Contains("image/") OrElse contentType.Contains("text/plain")) Then
+                    Throw New Exception(
+                        $"The server returned a small file ({contentLength.Value} bytes, type: {contentType}) " &
+                        "instead of the expected game file. " &
+                        "Please use 'Open Details Page' to download manually.")
+                End If
+            End If
+        End Sub
+
         ''' <summary>
         ''' Extracts a filename from a URL path.
         ''' </summary>

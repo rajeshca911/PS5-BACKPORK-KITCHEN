@@ -165,7 +165,9 @@ Public Class DownloadProgressForm
         Catch ex As Exception
             ' If the error suggests using browser, offer to open the URL
             If ex.Message.Contains("browser") OrElse ex.Message.Contains("403") OrElse
-               ex.Message.Contains("Cloudflare") OrElse ex.Message.Contains("Forbidden") Then
+               ex.Message.Contains("Cloudflare") OrElse ex.Message.Contains("Forbidden") OrElse
+               ex.Message.Contains("HTML page instead") OrElse ex.Message.Contains("small file") OrElse
+               ex.Message.Contains("CAPTCHA") OrElse ex.Message.Contains("manually") Then
                 Dim msgResult = MessageBox.Show(
                     $"Direct download failed: {ex.Message}{vbCrLf}{vbCrLf}Would you like to open the link in your browser instead?",
                     "Download Error", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
