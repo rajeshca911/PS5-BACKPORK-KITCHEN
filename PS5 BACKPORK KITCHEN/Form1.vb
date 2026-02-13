@@ -743,6 +743,20 @@ Public Class Form1
             .FlatStyle = FlatStyle.Flat
             .Cursor = Cursors.Hand
         End With
+        With btnUFS2Image
+            .Text = "💿 UFS2 Image"
+            .Font = New Font("Segoe UI", 9, FontStyle.Bold)
+            .BackColor = Color.FromArgb(180, 210, 255)
+            .FlatStyle = FlatStyle.Flat
+            .Cursor = Cursors.Hand
+        End With
+        With btnPkgManager
+            .Text = "📦 PKG Manager"
+            .Font = New Font("Segoe UI", 9, FontStyle.Bold)
+            .BackColor = Color.FromArgb(200, 230, 180)
+            .FlatStyle = FlatStyle.Flat
+            .Cursor = Cursors.Hand
+        End With
     End Sub
 
     ''' <summary>
@@ -1468,6 +1482,11 @@ Public Class Form1
             AddHandler libraryManagerItem.Click, AddressOf OpenCustomLibraryManager
             themeMenu.Items.Add(libraryManagerItem)
 
+            ' Game Search option
+            Dim gameSearchItem As New ToolStripMenuItem("🔍 Game Search")
+            AddHandler gameSearchItem.Click, AddressOf OpenGameSearch
+            themeMenu.Items.Add(gameSearchItem)
+
             ' Show menu below the button
             themeMenu.Show(btnTheme, New Point(0, btnTheme.Height))
         Catch ex As Exception
@@ -1767,6 +1786,19 @@ Public Class Form1
     End Sub
 
     ''' <summary>
+    ''' Open Game Search window
+    ''' </summary>
+    Private Sub OpenGameSearch(sender As Object, e As EventArgs)
+        Try
+            Using frm As New GameSearchForm()
+                frm.ShowDialog()
+            End Using
+        Catch ex As Exception
+            MessageBox.Show($"Error opening Game Search: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    ''' <summary>
     ''' Update button text to show keyboard shortcuts.
     ''' </summary>
     Private Sub UpdateButtonTextWithShortcuts()
@@ -1953,6 +1985,44 @@ Public Class Form1
         '    lblfw.Text = ""
         '    lblfw.ForeColor = Color.Black
         'End If
+    End Sub
+
+    ' === UFS2 Image & PKG Manager Button Handlers ===
+
+    Private Sub btnUFS2Image_Click(sender As Object, e As EventArgs) Handles btnUFS2Image.Click
+        OpenUFS2Image()
+    End Sub
+
+    Private Sub btnPkgManager_Click(sender As Object, e As EventArgs) Handles btnPkgManager.Click
+        OpenPackageManager()
+    End Sub
+
+    ''' <summary>
+    ''' Open UFS2 Image Converter window
+    ''' </summary>
+    Private Sub OpenUFS2Image()
+        Try
+            Using frm As New UFS2ImageForm()
+                frm.ShowDialog()
+            End Using
+        Catch ex As Exception
+            MessageBox.Show($"Error opening UFS2 Image Converter: {ex.Message}",
+                          "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Open PKG/FPKG Package Manager window
+    ''' </summary>
+    Private Sub OpenPackageManager()
+        Try
+            Using frm As New PackageManagerForm()
+                frm.ShowDialog()
+            End Using
+        Catch ex As Exception
+            MessageBox.Show($"Error opening Package Manager: {ex.Message}",
+                          "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
 
 End Class
