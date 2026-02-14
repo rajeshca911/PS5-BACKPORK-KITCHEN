@@ -15,6 +15,7 @@ Public Class PackageManagerForm
     Private btnViewSfo As ToolStripButton
     Private btnValidate As ToolStripButton
     Private btnViewBackground As ToolStripButton
+    Private btnInstallToPs5 As ToolStripButton
     Private lblPkgPath As ToolStripLabel
     Private txtPkgPath As ToolStripTextBox
 
@@ -108,6 +109,12 @@ Public Class PackageManagerForm
         btnViewBackground = New ToolStripButton("View Pic1") With {.DisplayStyle = ToolStripItemDisplayStyle.Text, .Enabled = False}
         AddHandler btnViewBackground.Click, AddressOf BtnViewBackground_Click
         toolStrip.Items.Add(btnViewBackground)
+
+        toolStrip.Items.Add(New ToolStripSeparator())
+
+        btnInstallToPs5 = New ToolStripButton("Install to PS5") With {.DisplayStyle = ToolStripItemDisplayStyle.Text, .Enabled = False}
+        AddHandler btnInstallToPs5.Click, AddressOf BtnInstallToPs5_Click
+        toolStrip.Items.Add(btnInstallToPs5)
 
         root.Controls.Add(toolStrip, 0, 0)
 
@@ -345,6 +352,7 @@ Public Class PackageManagerForm
             End If
 
             btnExtractAll.Enabled = _reader.Header.IsFPKG
+            btnInstallToPs5.Enabled = _reader.Header.IsFPKG
             btnViewSfo.Enabled = _reader.Metadata IsNot Nothing
             btnValidate.Enabled = True
             btnViewBackground.Enabled = _reader.EntryTable.Entries.Any(
@@ -680,6 +688,25 @@ Public Class PackageManagerForm
             MessageBox.Show($"Error loading pic1.png: {ex.Message}", "Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
+    End Sub
+
+    Private Sub BtnInstallToPs5_Click(sender As Object, e As EventArgs)
+        If _reader Is Nothing OrElse Not _reader.Header.IsFPKG Then
+            MessageBox.Show("Open an FPKG file first.", "No PKG Loaded",
+                          MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Dim pkgPath = txtPkgPath.Text.Trim()
+        If String.IsNullOrEmpty(pkgPath) OrElse Not IO.File.Exists(pkgPath) Then
+            MessageBox.Show("PKG file not found.", "Error",
+                          MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Using frm As New RemotePkgInstallForm(pkgPath)
+            frm.ShowDialog(Me)
+        End Using
     End Sub
 
     ' ===== HELPERS =====

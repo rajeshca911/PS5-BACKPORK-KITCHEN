@@ -1491,6 +1491,15 @@ Public Class Form1
             AddHandler gameSearchItem.Click, AddressOf OpenGameSearch
             themeMenu.Items.Add(gameSearchItem)
 
+            ' Remote PKG Install
+            Dim remotePkgItem As New ToolStripMenuItem("📡 Remote PKG Install")
+            AddHandler remotePkgItem.Click, Sub()
+                                                Using frm As New RemotePkgInstallForm()
+                                                    frm.ShowDialog(Me)
+                                                End Using
+                                            End Sub
+            themeMenu.Items.Add(remotePkgItem)
+
             ' Show menu below the button
             themeMenu.Show(btnTheme, New Point(0, btnTheme.Height))
         Catch ex As Exception
