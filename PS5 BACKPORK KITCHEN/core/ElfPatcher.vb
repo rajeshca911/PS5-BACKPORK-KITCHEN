@@ -1,4 +1,10 @@
 ﻿Imports System.IO
+Imports PS5_BACKPORK_KITCHEN.Architecture.Infrastructure.Adapters
+Public Enum PatchStatus
+    Patched
+    Skipped
+    Failed
+End Enum
 
 Public Class ElfPatcher
 
@@ -45,24 +51,26 @@ Public Class ElfPatcher
         message = "No patchable segment found"
         Return False
     End Function
-
     Public Shared Function PatchSingleFile(
-        filePath As String,
-        targetPs5 As UInteger,
-        targetPs4 As UInteger,
-        ByRef logMessage As String
-    ) As Boolean
+     filePath As String,
+     targetPs5 As UInteger,
+     targetPs4 As UInteger,
+     ByRef logMessage As String
+ ) As PatchStatus
+
 
         Dim info = ElfInspector.ReadInfo(filePath)
         Logger.Log(Form1.rtbStatus, $"Elf: {filePath}", Color.Purple)
         If Not info.IsPatchable Then
             logMessage = "Skipped (not patchable)"
-            Return False
+            Return PatchStatus.Skipped
         End If
+        logMessage = $"SDK check: current={info.Ps5SdkVersion:X8} target={targetPs5:X8}{vbCrLf}"
+        Debug.Print($"SDK check: current={info.Ps5SdkVersion:X8} target={targetPs5:X8}{vbCrLf}")
 
         If Not ShouldPatch(info.Ps5SdkVersion.Value, targetPs5) Then
             logMessage = $"Skipped (already ≤ target SDK {info.Ps5SdkVersion:X8})"
-            Return False
+            Return PatchStatus.Skipped
         End If
 
         'If createBackup Then
@@ -76,13 +84,51 @@ Public Class ElfPatcher
             Dim msg As String = ""
             If Not ElfPatcher.PatchFile(fs, targetPs5, targetPs4, msg) Then
                 logMessage = "Patch failed"
-                Return False
+                Return PatchStatus.Failed
             End If
         End Using
 
         logMessage = $"Patched {info.Ps5SdkVersion:X8} → {targetPs5:X8}"
-        Return True
+        Return PatchStatus.Patched
+
     End Function
+    'Public Shared Function PatchSingleFile(
+    '    filePath As String,
+    '    targetPs5 As UInteger,
+    '    targetPs4 As UInteger,
+    '    ByRef logMessage As String
+    ') As Boolean
+
+    '    Dim info = ElfInspector.ReadInfo(filePath)
+    '    Logger.Log(Form1.rtbStatus, $"Elf: {filePath}", Color.Purple)
+    '    If Not info.IsPatchable Then
+    '        logMessage = "Skipped (not patchable)"
+    '        Return False
+    '    End If
+
+    '    If Not ShouldPatch(info.Ps5SdkVersion.Value, targetPs5) Then
+    '        logMessage = $"Skipped (already ≤ target SDK {info.Ps5SdkVersion:X8})"
+    '        Return False
+    '    End If
+
+    '    'If createBackup Then
+    '    '    Dim bak = filePath & ".bak"
+    '    '    If Not File.Exists(bak) Then
+    '    '        File.Copy(filePath, bak)
+    '    '    End If
+    '    'End If
+
+    '    Using fs As New FileStream(filePath, FileMode.Open, FileAccess.ReadWrite)
+    '        Dim msg As String = ""
+    '        If Not ElfPatcher.PatchFile(fs, targetPs5, targetPs4, msg) Then
+    '            logMessage = "Patch failed"
+    '            Return False
+    '        End If
+    '    End Using
+
+    '    logMessage = $"Patched {info.Ps5SdkVersion:X8} → {targetPs5:X8}"
+    '    Return True
+    'End Function
 
     Public Shared Sub PatchFolder(
         folderPath As String,

@@ -1,3 +1,5 @@
+Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Errors
+
 Namespace Architecture.Domain.Errors
     ''' <summary>
     ''' Error when a file is not found
@@ -261,3 +263,28 @@ Namespace Architecture.Domain.Errors
         End Function
     End Class
 End Namespace
+''' <summary>
+''' Error when SELF decryption fails
+''' </summary>
+Public Class DecryptFailedError
+    Inherits DomainError
+
+    Private ReadOnly _filePath As String
+
+    Public Sub New(filePath As String)
+        _filePath = filePath
+    End Sub
+
+    Public Overrides ReadOnly Property Code As String = "DECRYPT_FAILED"
+
+    Public Overrides ReadOnly Property Message As String
+        Get
+            Return $"SELF decryption failed: {_filePath}"
+        End Get
+    End Property
+
+    Public Overrides Function ToUserMessage() As String
+        Return "Impossibile decriptare il file SELF."
+    End Function
+End Class
+

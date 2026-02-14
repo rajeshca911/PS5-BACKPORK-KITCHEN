@@ -35,6 +35,38 @@ Namespace Architecture.Application.Services
                     Return Result(Of PatchResult).Fail(New FileNotFoundError(filePath))
                 End If
 
+                ' ---------- STEP 1: Ensure file is decrypted ELF ----------
+
+                Dim workingPath As String = filePath
+
+                If Not IsFileDecrypted(filePath) Then
+
+                    _logger.LogInfo($"SELF detected — decrypting: {filePath}")
+
+                    Dim dir = IO.Path.GetDirectoryName(filePath)
+                    Dim base = IO.Path.GetFileNameWithoutExtension(filePath)
+                    Dim ext = IO.Path.GetExtension(filePath)
+
+                    Dim tempDecPath = IO.Path.Combine(dir, base & "_tmp_dec" & ext)
+
+                    Dim ok = selfutilmodule.unpackfile(filePath, tempDecPath)
+
+                    If Not ok Then
+                        _logger.LogError($"Decrypt failed: {filePath}")
+                        Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
+                    End If
+
+                    ' overwrite original safely (your original design — correct)
+                    IO.File.Copy(tempDecPath, filePath, True)
+                    IO.File.Delete(tempDecPath)
+
+                    _logger.LogInfo($"Decrypted OK → {filePath}")
+
+                Else
+                    _logger.LogInfo($"Already ELF — skipping decrypt: {filePath}")
+                End If
+
+                ' ---------- Step 2: Ensure ELF (decrypt SELF first) ----------
                 ' Read file info using existing ElfInspector
                 Dim info = ElfInspector.ReadInfo(filePath)
 
@@ -49,6 +81,8 @@ Namespace Architecture.Application.Services
                 Dim currentSdk = CLng(info.Ps5SdkVersion)
 
                 ' Check if already patched
+                _logger.LogInfo($"SDK check: current={currentSdk} target = {targetSdk}")
+
                 If currentSdk = targetSdk Then
                     _logger.LogInfo($"File already patched: {filePath}")
                     Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
@@ -61,11 +95,29 @@ Namespace Architecture.Application.Services
                 Dim targetPs5 = CUInt(targetSdk)
                 Dim targetPs4 = 0UI ' Not used for now
 
-                Dim success = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+                'Dim success = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
 
-                If Not success Then
-                    Return Result(Of PatchResult).Fail(New PatchFailedError(filePath))
-                End If
+                'If Not success Then
+                '    Return Result(Of PatchResult).Fail(New PatchFailedError(filePath))
+                'End If
+                Dim status = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+
+                Select Case status
+
+                    Case PatchStatus.Patched
+        ' continue success flow
+
+                    Case PatchStatus.Skipped
+                        Return Result(Of PatchResult).Fail(
+            New AlreadyPatchedError(filePath, targetSdk)
+        )
+
+                    Case PatchStatus.Failed
+                        Return Result(Of PatchResult).Fail(
+            New PatchFailedError(filePath)
+        )
+
+                End Select
 
                 Dim duration = DateTime.Now - startTime
 
@@ -77,7 +129,7 @@ Namespace Architecture.Application.Services
                 ' Create result
                 Dim patchResult = New PatchResult With {
                     .FilePath = filePath,
-                    .OriginalSdk = currentSdk,
+                    .OriginalSdk = info.Ps5SdkVersion.Value,
                     .PatchedSdk = targetSdk,
                     .BytesWritten = fileSize,
                     .Duration = duration
@@ -130,5 +182,18 @@ Namespace Architecture.Application.Services
                 Return Result(Of Long).Fail(New FileAccessError(filePath, ex))
             End Try
         End Function
+        Public Shared Function IsFileDecrypted(path As String) As Boolean
+            Using fs As New FileStream(path, FileMode.Open, FileAccess.Read)
+                Dim magic(3) As Byte
+                fs.Read(magic, 0, 4)
+
+                ' ELF magic = 7F 45 4C 46
+                Return magic(0) = &H7F AndAlso
+                       magic(1) = &H45 AndAlso
+                       magic(2) = &H4C AndAlso
+                       magic(3) = &H46
+            End Using
+        End Function
+
     End Class
 End Namespace

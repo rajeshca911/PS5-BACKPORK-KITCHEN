@@ -91,7 +91,7 @@ Public Class Form1
             ' === NEW: Use PatchingCoordinator instead of direct ElfPatcher call ===
             Dim patchOptions = New Architecture.Domain.Models.PatchOptions With {
                 .AutoBackup = False, ' Already handled above
-                .SkipAlreadyPatched = True,
+                .SkipAlreadyPatched = False,
                 .ContinueOnError = True,
                 .AutoVerify = False
             }
@@ -359,15 +359,25 @@ Public Class Form1
             Await CheckForUpdatesEnhancedAsync()
         Catch ex As Exception
             Debug.WriteLine($"Update check failed: {ex.Message}")
+            Logger.Log(rtbStatus, $"Update check failed: {ex.Message}", Color.Orange)
         End Try
         updatestatus("Downloading SelfUtil", 2)
         Logger.Log(RichGameInfo, $"Checking for SelfUtils", Color.Purple, False)
-        Await DownloadSelfUtil()
+        Try
+            Await DownloadSelfUtil()
+        Catch ex As Exception
+            Logger.Log(rtbStatus, $"SelfUtil download failed: {ex.Message}", Color.Red)
+            MessageBox.Show("Selfutil downloading failed")
+        End Try
         'Await DownloadAllStandaloneAsync()
         Me.Refresh()
         updatestatus("Downloading Libs", 2)
         Logger.Log(RichGameInfo, $"Checking fakelibs Please wait..", Color.Blue, False)
-        Await DownloadAllArchivesAsync()
+        Try
+            Await DownloadAllArchivesAsync()
+        Catch ex As Exception
+            Logger.Log(rtbStatus, $"Fakelib download failed: {ex.Message}", Color.Red)
+        End Try
         Application.DoEvents()
         Logger.Log(RichGameInfo, $"Checks Done!", Color.Blue, False)
         Await Task.Delay(5000)
