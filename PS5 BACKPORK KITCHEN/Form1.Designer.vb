@@ -48,8 +48,6 @@ Partial Class Form1
         cmbPs5Sdk = New ReaLTaiizor.Controls.PoisonComboBox()
         Label1 = New Label()
         lblfw = New Label()
-        TableLayoutPanel6 = New TableLayoutPanel()
-        Button5 = New Button()
         btnPayloadManager = New Button()
         btnAdvancedOps = New Button()
         btnBatchProcess = New Button()
@@ -59,6 +57,7 @@ Partial Class Form1
         btnPkgManager = New Button()
         lblDragDropHint = New ReaLTaiizor.Controls.MoonLabel()
         chklibcpatch = New ReaLTaiizor.Controls.FoxCheckBoxEdit()
+        FlowLayoutPanel1 = New FlowLayoutPanel()
         TableLayoutPanel1.SuspendLayout()
         TableLayoutPanel4.SuspendLayout()
         CType(gamepic, ComponentModel.ISupportInitialize).BeginInit()
@@ -66,7 +65,7 @@ Partial Class Form1
         TableLayoutPanel3.SuspendLayout()
         CType(StatusPic, ComponentModel.ISupportInitialize).BeginInit()
         TableLayoutPanel5.SuspendLayout()
-        TableLayoutPanel6.SuspendLayout()
+        FlowLayoutPanel1.SuspendLayout()
         SuspendLayout()
         ' 
         ' BtnBrowse
@@ -434,53 +433,13 @@ Partial Class Form1
         lblfw.Text = "Loading.."
         lblfw.TextAlign = ContentAlignment.MiddleLeft
         ' 
-        ' TableLayoutPanel6
-        ' 
-        TableLayoutPanel6.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left
-        TableLayoutPanel6.ColumnCount = 2
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 48.5F))
-        TableLayoutPanel6.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 51.5F))
-        TableLayoutPanel6.Controls.Add(Button5, 1, 2)
-        TableLayoutPanel6.Controls.Add(btnPayloadManager, 0, 2)
-        TableLayoutPanel6.Controls.Add(btnAdvancedOps, 1, 1)
-        TableLayoutPanel6.Controls.Add(btnBatchProcess, 0, 1)
-        TableLayoutPanel6.Controls.Add(btnElfInspector, 1, 0)
-        TableLayoutPanel6.Controls.Add(btnShowStatistics, 0, 0)
-        TableLayoutPanel6.Controls.Add(btnUFS2Image, 0, 3)
-        TableLayoutPanel6.Controls.Add(btnPkgManager, 1, 3)
-        TableLayoutPanel6.Location = New Point(27, 330)
-        TableLayoutPanel6.Name = "TableLayoutPanel6"
-        TableLayoutPanel6.RowCount = 4
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
-        TableLayoutPanel6.Size = New Size(358, 130)
-        TableLayoutPanel6.TabIndex = 23
-        ' 
-        ' Button5
-        ' 
-        Button5.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        Button5.Dock = DockStyle.Fill
-        Button5.FlatStyle = FlatStyle.System
-        Button5.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Button5.ForeColor = Color.Black
-        Button5.Location = New Point(176, 67)
-        Button5.Name = "Button5"
-        Button5.Size = New Size(179, 26)
-        Button5.TabIndex = 5
-        Button5.Text = "Stats"
-        Button5.UseVisualStyleBackColor = False
-        Button5.Visible = False
-        ' 
         ' btnPayloadManager
         ' 
         btnPayloadManager.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnPayloadManager.Dock = DockStyle.Fill
         btnPayloadManager.FlatStyle = FlatStyle.System
         btnPayloadManager.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnPayloadManager.ForeColor = Color.Black
-        btnPayloadManager.Location = New Point(3, 67)
+        btnPayloadManager.Location = New Point(3, 35)
         btnPayloadManager.Name = "btnPayloadManager"
         btnPayloadManager.Size = New Size(167, 26)
         btnPayloadManager.TabIndex = 4
@@ -490,13 +449,12 @@ Partial Class Form1
         ' btnAdvancedOps
         ' 
         btnAdvancedOps.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnAdvancedOps.Dock = DockStyle.Fill
         btnAdvancedOps.FlatStyle = FlatStyle.System
         btnAdvancedOps.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnAdvancedOps.ForeColor = Color.Black
-        btnAdvancedOps.Location = New Point(176, 35)
+        btnAdvancedOps.Location = New Point(176, 67)
         btnAdvancedOps.Name = "btnAdvancedOps"
-        btnAdvancedOps.Size = New Size(179, 26)
+        btnAdvancedOps.Size = New Size(167, 26)
         btnAdvancedOps.TabIndex = 3
         btnAdvancedOps.Text = "btnAdvancedOps"
         btnAdvancedOps.UseVisualStyleBackColor = False
@@ -504,11 +462,10 @@ Partial Class Form1
         ' btnBatchProcess
         ' 
         btnBatchProcess.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnBatchProcess.Dock = DockStyle.Fill
         btnBatchProcess.FlatStyle = FlatStyle.System
         btnBatchProcess.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnBatchProcess.ForeColor = Color.Black
-        btnBatchProcess.Location = New Point(3, 35)
+        btnBatchProcess.Location = New Point(176, 3)
         btnBatchProcess.Name = "btnBatchProcess"
         btnBatchProcess.Size = New Size(167, 26)
         btnBatchProcess.TabIndex = 2
@@ -518,13 +475,12 @@ Partial Class Form1
         ' btnElfInspector
         ' 
         btnElfInspector.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnElfInspector.Dock = DockStyle.Fill
         btnElfInspector.FlatStyle = FlatStyle.System
         btnElfInspector.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnElfInspector.ForeColor = Color.Black
-        btnElfInspector.Location = New Point(176, 3)
+        btnElfInspector.Location = New Point(3, 67)
         btnElfInspector.Name = "btnElfInspector"
-        btnElfInspector.Size = New Size(179, 26)
+        btnElfInspector.Size = New Size(167, 26)
         btnElfInspector.TabIndex = 1
         btnElfInspector.Text = "btnElfInspector"
         btnElfInspector.UseVisualStyleBackColor = False
@@ -532,7 +488,6 @@ Partial Class Form1
         ' btnShowStatistics
         ' 
         btnShowStatistics.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnShowStatistics.Dock = DockStyle.Fill
         btnShowStatistics.FlatStyle = FlatStyle.System
         btnShowStatistics.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnShowStatistics.ForeColor = Color.Black
@@ -546,27 +501,26 @@ Partial Class Form1
         ' btnUFS2Image
         ' 
         btnUFS2Image.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnUFS2Image.Dock = DockStyle.Fill
         btnUFS2Image.FlatStyle = FlatStyle.System
         btnUFS2Image.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnUFS2Image.ForeColor = Color.Black
-        btnUFS2Image.Location = New Point(3, 99)
+        btnUFS2Image.Location = New Point(176, 35)
         btnUFS2Image.Name = "btnUFS2Image"
-        btnUFS2Image.Size = New Size(167, 28)
+        btnUFS2Image.Size = New Size(167, 26)
         btnUFS2Image.TabIndex = 6
         btnUFS2Image.Text = "btnUFS2Image"
         btnUFS2Image.UseVisualStyleBackColor = False
+        btnUFS2Image.Visible = False
         ' 
         ' btnPkgManager
         ' 
         btnPkgManager.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
-        btnPkgManager.Dock = DockStyle.Fill
         btnPkgManager.FlatStyle = FlatStyle.System
         btnPkgManager.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnPkgManager.ForeColor = Color.Black
-        btnPkgManager.Location = New Point(176, 99)
+        btnPkgManager.Location = New Point(3, 99)
         btnPkgManager.Name = "btnPkgManager"
-        btnPkgManager.Size = New Size(179, 28)
+        btnPkgManager.Size = New Size(167, 26)
         btnPkgManager.TabIndex = 7
         btnPkgManager.Text = "btnPkgManager"
         btnPkgManager.UseVisualStyleBackColor = False
@@ -600,15 +554,29 @@ Partial Class Form1
         chklibcpatch.TabIndex = 25
         chklibcpatch.Text = "libc Patch"
         ' 
+        ' FlowLayoutPanel1
+        ' 
+        FlowLayoutPanel1.Controls.Add(btnShowStatistics)
+        FlowLayoutPanel1.Controls.Add(btnBatchProcess)
+        FlowLayoutPanel1.Controls.Add(btnPayloadManager)
+        FlowLayoutPanel1.Controls.Add(btnUFS2Image)
+        FlowLayoutPanel1.Controls.Add(btnElfInspector)
+        FlowLayoutPanel1.Controls.Add(btnAdvancedOps)
+        FlowLayoutPanel1.Controls.Add(btnPkgManager)
+        FlowLayoutPanel1.Location = New Point(26, 330)
+        FlowLayoutPanel1.Name = "FlowLayoutPanel1"
+        FlowLayoutPanel1.Size = New Size(353, 135)
+        FlowLayoutPanel1.TabIndex = 26
+        ' 
         ' Form1
         ' 
         AllowDrop = True
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(906, 555)
+        Controls.Add(FlowLayoutPanel1)
         Controls.Add(chklibcpatch)
         Controls.Add(lblDragDropHint)
-        Controls.Add(TableLayoutPanel6)
         Controls.Add(TableLayoutPanel5)
         Controls.Add(NightLinkLabel1)
         Controls.Add(lblexperiment)
@@ -634,7 +602,7 @@ Partial Class Form1
         CType(StatusPic, ComponentModel.ISupportInitialize).EndInit()
         TableLayoutPanel5.ResumeLayout(False)
         TableLayoutPanel5.PerformLayout()
-        TableLayoutPanel6.ResumeLayout(False)
+        FlowLayoutPanel1.ResumeLayout(False)
         ResumeLayout(False)
         PerformLayout()
     End Sub
@@ -660,10 +628,8 @@ Partial Class Form1
     Friend WithEvents NightLinkLabel1 As ReaLTaiizor.Controls.NightLinkLabel
     Friend WithEvents TableLayoutPanel5 As TableLayoutPanel
     Friend WithEvents lblVer As ReaLTaiizor.Controls.DungeonLabel
-    Friend WithEvents TableLayoutPanel6 As TableLayoutPanel
     Friend WithEvents lblDragDropHint As ReaLTaiizor.Controls.MoonLabel
     Friend WithEvents btnShowStatistics As Button
-    Friend WithEvents Button5 As Button
     Friend WithEvents btnPayloadManager As Button
     Friend WithEvents btnAdvancedOps As Button
     Friend WithEvents btnBatchProcess As Button
@@ -674,5 +640,6 @@ Partial Class Form1
     Friend WithEvents lblfw As Label
     Friend WithEvents btnUFS2Image As Button
     Friend WithEvents btnPkgManager As Button
+    Friend WithEvents FlowLayoutPanel1 As FlowLayoutPanel
 
 End Class

@@ -265,6 +265,10 @@ Public Class Form1
 
         ' Add Telegram support links
         AddTelegramSupport()
+#If DEBUG Then
+        btnUFS2Image.Visible = True
+
+#End If
 
     End Sub
 
@@ -2024,5 +2028,6 @@ Public Class Form1
                           "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
+
 
 End Class
