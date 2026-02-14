@@ -20,7 +20,7 @@ Namespace Services.GameSearch
         Public Property Platform As String
         Public Property Region As String
         Public Property FirmwareRequired As String
-
+        Public Property DownloadLinks As New List(Of HostLink)
         Public ReadOnly Property DisplaySize As String
             Get
                 If SizeBytes <= 0 Then Return Size

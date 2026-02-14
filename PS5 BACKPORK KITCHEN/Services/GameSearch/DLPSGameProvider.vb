@@ -1,15 +1,22 @@
+Imports System.Collections.Specialized.BitVector32
 Imports System.Net
 Imports System.Net.Http
 Imports System.Text.RegularExpressions
 
 Namespace Services.GameSearch
+
     ''' <summary>
     ''' DLPSGame.com search provider for PS5/PS4 game downloads.
     ''' Scrapes game listings and extracts direct download links from
     ''' multiple hosting services (1fichier, Mediafire, Gofile, etc.).
     ''' </summary>
+    Public Class HostLink
+        Public Property Host As String
+        Public Property Url As String
+    End Class
     Public Class DLPSGameProvider
         Implements IGameSearchProvider
+
 
         Private Const BASE_URL As String = "https://dlpsgame.com"
 
@@ -280,46 +287,46 @@ Namespace Services.GameSearch
 
             If sections.Count > 0 Then
                 For Each section In sections
-                    Dim result As New GameSearchResult With {
-                        .Title = $"{gameTitle} [{section.Label}]",
-                        .DetailsUrl = listing.DetailsUrl,
-                        .SourceProvider = DisplayName,
-                        .Platform = listing.Platform,
-                        .Region = region,
-                        .FirmwareRequired = firmware,
-                        .Category = section.Label,
-                        .DownloadUrl = listing.DetailsUrl,
-                        .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", ""),
-                        .Uploader = If(section.Links.Count > 0, String.Join(" | ", section.Links.Select(Function(l) $"{l.HostName}: {l.Url}")), "")
-                    }
 
-                    ' Set MagnetLink to the first available download link (for copy functionality)
+                    Dim result As New GameSearchResult With {
+                .Title = $"{gameTitle} [{section.Label}]",
+                .DetailsUrl = listing.DetailsUrl,
+                .SourceProvider = DisplayName,
+                .Platform = listing.Platform,
+                .Region = region,
+                .FirmwareRequired = firmware,
+                .Category = section.Label,
+                .DownloadUrl = listing.DetailsUrl,
+                .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", ""),
+                .Uploader = If(section.Links.Count > 0,
+                    String.Join(" | ", section.Links.Select(Function(l) $"{l.HostName}: {l.Url}")),
+                    "")
+    }
+
+                    ' ✅ ADD THIS — YOU MISSED IT
+                    For Each l In section.Links
+                        result.DownloadLinks.Add(New HostLink With {
+            .Host = l.HostName,
+            .Url = l.Url
+        })
+                    Next
+
                     If section.Links.Count > 0 Then
                         result.MagnetLink = section.Links(0).Url
                     End If
 
                     results.Add(result)
+
                 Next
-            Else
-                ' Flat list of download links - create single result
-                Dim result As New GameSearchResult With {
-                    .Title = gameTitle,
-                    .DetailsUrl = listing.DetailsUrl,
-                    .SourceProvider = DisplayName,
-                    .Platform = listing.Platform,
-                    .Region = region,
-                    .FirmwareRequired = firmware,
-                    .Category = "Game",
-                    .DownloadUrl = listing.DetailsUrl,
-                    .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", ""),
-                    .Uploader = String.Join(" | ", allLinks.Take(6).Select(Function(l) $"{l.HostName}: {l.Url}"))
-                }
 
-                If allLinks.Count > 0 Then
-                    result.MagnetLink = allLinks(0).Url
-                End If
 
-                results.Add(result)
+                '' keep first link as primary
+                'If allLinks.Count > 0 Then
+                '    result.MagnetLink = allLinks(0).Url
+                'End If
+
+                'results.Add(result)
+
             End If
 
             Return results

@@ -21,10 +21,13 @@ Public Class GameSearchForm
     Private btnSearch As Button
     Private btnCancel As Button
     Private btnSettings As Button
-    Private dgvResults As DataGridView
+    'Private dgvResults As DataGridView
+    Private WithEvents dgvResults As DataGridView
     Private lblStatus As Label
     Private progressBar As ProgressBar
     Private contextMenu As ContextMenuStrip
+
+
 
     Public Sub New()
         InitializeComponent()
@@ -216,37 +219,107 @@ Public Class GameSearchForm
 
         SetupResultsGrid()
         AddHandler dgvResults.CellDoubleClick, AddressOf dgvResults_CellDoubleClick
-        AddHandler dgvResults.MouseClick, AddressOf dgvResults_MouseClick
+        'AddHandler dgvResults.MouseClick, AddressOf dgvResults_MouseClick
+
         Me.Controls.Add(dgvResults)
         dgvResults.BringToFront()
 
-        ' Context menu
+
         contextMenu = New ContextMenuStrip()
 
         Dim mnuCopyMagnet As New ToolStripMenuItem("Copy Magnet Link")
+        mnuCopyMagnet.Name = "mnuCopyMagnet"
         AddHandler mnuCopyMagnet.Click, AddressOf CopyMagnetLink_Click
         contextMenu.Items.Add(mnuCopyMagnet)
 
         Dim mnuOpenDetails As New ToolStripMenuItem("Open Details Page")
+        mnuOpenDetails.Name = "mnuOpenDetails"
         AddHandler mnuOpenDetails.Click, AddressOf OpenDetails_Click
         contextMenu.Items.Add(mnuOpenDetails)
 
         contextMenu.Items.Add(New ToolStripSeparator())
 
         Dim mnuOpenMagnet As New ToolStripMenuItem("Open with Torrent Client")
-        AddHandler mnuOpenMagnet.Click, AddressOf OpenMagnet_Click
+        mnuOpenMagnet.Name = "mnuOpenMagnet"
+
         contextMenu.Items.Add(mnuOpenMagnet)
+'<<<<<<< Updated upstream
 
-        contextMenu.Items.Add(New ToolStripSeparator())
+'        contextMenu.Items.Add(New ToolStripSeparator())
 
-        Dim mnuDownload As New ToolStripMenuItem("Download File")
-        AddHandler mnuDownload.Click, AddressOf DownloadFile_Click
-        contextMenu.Items.Add(mnuDownload)
+'        Dim mnuDownload As New ToolStripMenuItem("Download File")
+'        AddHandler mnuDownload.Click, AddressOf DownloadFile_Click
+'        contextMenu.Items.Add(mnuDownload)
 
-        Dim mnuCopyLinks As New ToolStripMenuItem("Copy Download Links")
-        AddHandler mnuCopyLinks.Click, AddressOf CopyDownloadLinks_Click
-        contextMenu.Items.Add(mnuCopyLinks)
+'        Dim mnuCopyLinks As New ToolStripMenuItem("Copy Download Links")
+'        AddHandler mnuCopyLinks.Click, AddressOf CopyDownloadLinks_Click
+'        contextMenu.Items.Add(mnuCopyLinks)
+'=======
+        dgvResults.ContextMenuStrip = contextMenu
+
+        'AddHandler dgvResults.CellMouseDown, AddressOf dgvResults_CellMouseDown
+        AddHandler contextMenu.Opening, AddressOf ContextMenu_Opening
+
+'>>>>>>> Stashed changes
     End Sub
+
+    Private Sub ContextMenu_Opening(
+    sender As Object,
+    e As System.ComponentModel.CancelEventArgs)
+
+        contextMenu.Items.Clear()
+
+        Dim result = GetSelectedResult()
+        If result Is Nothing Then
+            e.Cancel = True
+            Return
+        End If
+
+        ' Always keep details page
+        contextMenu.Items.Add(New ToolStripMenuItem(
+        "Open Details Page",
+        Nothing,
+        AddressOf OpenDetails_Click))
+
+        ' DLPS multi-link handling
+        If result.SourceProvider = "DLPSGame" AndAlso
+       result.DownloadLinks IsNot Nothing AndAlso
+       result.DownloadLinks.Count > 0 Then
+
+            contextMenu.Items.Add(New ToolStripSeparator())
+
+            ' COPY submenu
+            Dim copyMenu As New ToolStripMenuItem("Copy Download Link")
+            For Each link In result.DownloadLinks
+                Dim item As New ToolStripMenuItem(link.Host)
+                item.Tag = link.Url
+                AddHandler item.Click,
+                Sub() Clipboard.SetText(CStr(item.Tag))
+                copyMenu.DropDownItems.Add(item)
+            Next
+            contextMenu.Items.Add(copyMenu)
+
+            ' OPEN submenu
+            Dim openMenu As New ToolStripMenuItem("Open Download Link")
+            For Each link In result.DownloadLinks
+                Dim item As New ToolStripMenuItem(link.Host)
+                item.Tag = link.Url
+                AddHandler item.Click,
+                Sub()
+                    Process.Start(New ProcessStartInfo With {
+                        .FileName = CStr(item.Tag),
+                        .UseShellExecute = True
+                    })
+                End Sub
+                openMenu.DropDownItems.Add(item)
+            Next
+            contextMenu.Items.Add(openMenu)
+
+        End If
+
+    End Sub
+
+
 
     Private Sub SetupResultsGrid()
         dgvResults.Columns.Clear()
@@ -325,6 +398,8 @@ Public Class GameSearchForm
         }
         dgvResults.Columns.Add(colSource)
     End Sub
+
+
 
     Private Sub SetupEventHandlers()
         AddHandler _searchManager.SearchStarted, Sub(s, name)
@@ -521,17 +596,21 @@ Public Class GameSearchForm
         If e.RowIndex < 0 Then Return
         OpenDetails_Click(sender, e)
     End Sub
+    Private Sub dgvResults_CellMouseDown(
+    sender As Object,
+    e As DataGridViewCellMouseEventArgs) _
+    Handles dgvResults.CellMouseDown
 
-    Private Sub dgvResults_MouseClick(sender As Object, e As MouseEventArgs)
-        If e.Button = MouseButtons.Right Then
-            Dim hitTest = dgvResults.HitTest(e.X, e.Y)
-            If hitTest.RowIndex >= 0 Then
-                dgvResults.ClearSelection()
-                dgvResults.Rows(hitTest.RowIndex).Selected = True
-                contextMenu.Show(dgvResults, e.Location)
-            End If
+        If e.Button = MouseButtons.Right AndAlso e.RowIndex >= 0 Then
+            dgvResults.ClearSelection()
+            dgvResults.Rows(e.RowIndex).Selected = True
+            dgvResults.CurrentCell = dgvResults.Rows(e.RowIndex).Cells(0)
         End If
+
     End Sub
+
+
+
 
     Private Async Sub CopyMagnetLink_Click(sender As Object, e As EventArgs)
         Dim result = GetSelectedResult()
@@ -572,32 +651,28 @@ Public Class GameSearchForm
         End Try
     End Sub
 
-    Private Async Sub OpenMagnet_Click(sender As Object, e As EventArgs)
-        Dim result = GetSelectedResult()
-        If result Is Nothing Then Return
 
-        Try
-            lblStatus.Text = "Getting magnet link..."
 
-            Dim magnet = result.MagnetLink
-            If String.IsNullOrEmpty(magnet) Then
-                magnet = Await _searchManager.GetMagnetLinkAsync(result)
-            End If
+    '<<<<<<< Updated upstream
+    '            Dim magnet = result.MagnetLink
+    '            If String.IsNullOrEmpty(magnet) Then
+    '                magnet = Await _searchManager.GetMagnetLinkAsync(result)
+    '            End If
 
-            If Not String.IsNullOrEmpty(magnet) Then
-                Process.Start(New ProcessStartInfo With {
-                    .FileName = magnet,
-                    .UseShellExecute = True
-                })
-                lblStatus.Text = "Opening with torrent client..."
-            Else
-                MessageBox.Show("Could not get magnet link for this torrent.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            End If
+    '            If Not String.IsNullOrEmpty(magnet) Then
+    '                Process.Start(New ProcessStartInfo With {
+    '                    .FileName = magnet,
+    '                    .UseShellExecute = True
+    '                })
+    '                lblStatus.Text = "Opening with torrent client..."
+    '            Else
+    '                MessageBox.Show("Could not get magnet link for this torrent.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+    '            End If
 
-        Catch ex As Exception
-            MessageBox.Show($"Failed to open magnet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
-    End Sub
+    '        Catch ex As Exception
+    '            MessageBox.Show($"Failed to open magnet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+    '        End Try
+    '    End Sub
 
     Private Sub DownloadFile_Click(sender As Object, e As EventArgs)
         Dim result = GetSelectedResult()
@@ -745,4 +820,5 @@ Public Class GameSearchForm
         Clipboard.SetText(text)
         lblStatus.Text = $"Copied {links.Count} download link(s) to clipboard"
     End Sub
+
 End Class

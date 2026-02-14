@@ -101,7 +101,7 @@ Partial Class Form1
         TableLayoutPanel1.Name = "TableLayoutPanel1"
         TableLayoutPanel1.RowCount = 1
         TableLayoutPanel1.RowStyles.Add(New RowStyle(SizeType.Percent, 50F))
-        TableLayoutPanel1.Size = New Size(821, 167)
+        TableLayoutPanel1.Size = New Size(842, 168)
         TableLayoutPanel1.TabIndex = 2
         ' 
         ' rtbStatus
@@ -109,10 +109,10 @@ Partial Class Form1
         rtbStatus.BackColor = Color.White
         rtbStatus.BorderStyle = BorderStyle.None
         rtbStatus.Dock = DockStyle.Fill
-        rtbStatus.Location = New Point(421, 4)
+        rtbStatus.Location = New Point(432, 4)
         rtbStatus.Name = "rtbStatus"
         rtbStatus.ReadOnly = True
-        rtbStatus.Size = New Size(396, 159)
+        rtbStatus.Size = New Size(406, 160)
         rtbStatus.TabIndex = 0
         rtbStatus.Text = ""
         ' 
@@ -128,7 +128,7 @@ Partial Class Form1
         TableLayoutPanel4.Name = "TableLayoutPanel4"
         TableLayoutPanel4.RowCount = 1
         TableLayoutPanel4.RowStyles.Add(New RowStyle(SizeType.Percent, 50F))
-        TableLayoutPanel4.Size = New Size(410, 159)
+        TableLayoutPanel4.Size = New Size(421, 160)
         TableLayoutPanel4.TabIndex = 1
         ' 
         ' gamepic
@@ -139,7 +139,7 @@ Partial Class Form1
         gamepic.Location = New Point(3, 3)
         gamepic.Name = "gamepic"
         gamepic.PixelOffsetType = Drawing2D.PixelOffsetMode.HighQuality
-        gamepic.Size = New Size(199, 153)
+        gamepic.Size = New Size(204, 154)
         gamepic.SizeMode = PictureBoxSizeMode.Zoom
         gamepic.SmoothingType = Drawing2D.SmoothingMode.HighQuality
         gamepic.TabIndex = 0
@@ -151,10 +151,10 @@ Partial Class Form1
         RichGameInfo.BackColor = SystemColors.ControlLightLight
         RichGameInfo.BorderStyle = BorderStyle.None
         RichGameInfo.Dock = DockStyle.Fill
-        RichGameInfo.Location = New Point(208, 3)
+        RichGameInfo.Location = New Point(213, 3)
         RichGameInfo.Name = "RichGameInfo"
         RichGameInfo.ReadOnly = True
-        RichGameInfo.Size = New Size(199, 153)
+        RichGameInfo.Size = New Size(205, 154)
         RichGameInfo.TabIndex = 1
         RichGameInfo.Text = ""
         ' 
@@ -164,7 +164,7 @@ Partial Class Form1
         BtnStart.Font = New Font("Segoe UI Semibold", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         BtnStart.Image = My.Resources.Resources.meat
         BtnStart.ImageAlign = ContentAlignment.MiddleLeft
-        BtnStart.Location = New Point(690, 332)
+        BtnStart.Location = New Point(711, 333)
         BtnStart.Name = "BtnStart"
         BtnStart.Size = New Size(147, 51)
         BtnStart.TabIndex = 3
@@ -177,7 +177,7 @@ Partial Class Form1
         LblStat.Anchor = AnchorStyles.Bottom
         LblStat.BackColor = Color.MistyRose
         LblStat.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        LblStat.Location = New Point(57, 434)
+        LblStat.Location = New Point(68, 486)
         LblStat.Name = "LblStat"
         LblStat.Size = New Size(760, 19)
         LblStat.TabIndex = 0
@@ -194,7 +194,7 @@ Partial Class Form1
         TableLayoutPanel2.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 16F))
         TableLayoutPanel2.Controls.Add(PoisonLabel2, 0, 0)
         TableLayoutPanel2.Controls.Add(TableLayoutPanel3, 1, 0)
-        TableLayoutPanel2.Location = New Point(57, 456)
+        TableLayoutPanel2.Location = New Point(68, 508)
         TableLayoutPanel2.Name = "TableLayoutPanel2"
         TableLayoutPanel2.RowCount = 1
         TableLayoutPanel2.RowStyles.Add(New RowStyle(SizeType.Percent, 46.1538467F))
@@ -286,7 +286,7 @@ Partial Class Form1
         ' 
         StatusPic.Anchor = AnchorStyles.Bottom Or AnchorStyles.Right
         StatusPic.Image = My.Resources.Resources.Blue
-        StatusPic.Location = New Point(837, 447)
+        StatusPic.Location = New Point(858, 499)
         StatusPic.Name = "StatusPic"
         StatusPic.Size = New Size(28, 23)
         StatusPic.SizeMode = PictureBoxSizeMode.Zoom
@@ -304,7 +304,7 @@ Partial Class Form1
         chkBackup.CheckedColor = Color.FromArgb(CByte(255), CByte(255), CByte(255))
         chkBackup.Font = New Font("Segoe UI Semibold", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         chkBackup.ForeColor = Color.FromArgb(CByte(76), CByte(76), CByte(95))
-        chkBackup.Location = New Point(575, 332)
+        chkBackup.Location = New Point(601, 365)
         chkBackup.Name = "chkBackup"
         chkBackup.Size = New Size(104, 15)
         chkBackup.TabIndex = 5
@@ -315,7 +315,7 @@ Partial Class Form1
         ' 
         Separator2.Anchor = AnchorStyles.Bottom
         Separator2.LineColor = Color.Gray
-        Separator2.Location = New Point(65, 419)
+        Separator2.Location = New Point(76, 471)
         Separator2.Name = "Separator2"
         Separator2.Size = New Size(745, 10)
         Separator2.TabIndex = 14
@@ -326,7 +326,7 @@ Partial Class Form1
         MoonButton1.Customization = "/////9PT0//w8PD/gICA/w=="
         MoonButton1.Font = New Font("Segoe UI", 9F)
         MoonButton1.Image = Nothing
-        MoonButton1.Location = New Point(502, 350)
+        MoonButton1.Location = New Point(734, 439)
         MoonButton1.Name = "MoonButton1"
         MoonButton1.NoRounding = False
         MoonButton1.Size = New Size(104, 26)
@@ -355,7 +355,7 @@ Partial Class Form1
         lblexperiment.AutoSize = True
         lblexperiment.Font = New Font("Segoe UI Semibold", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         lblexperiment.ForeColor = Color.Red
-        lblexperiment.Location = New Point(715, 407)
+        lblexperiment.Location = New Point(743, 412)
         lblexperiment.Name = "lblexperiment"
         lblexperiment.Size = New Size(95, 17)
         lblexperiment.TabIndex = 19
@@ -371,7 +371,7 @@ Partial Class Form1
         NightLinkLabel1.Font = New Font("Segoe UI", 9F)
         NightLinkLabel1.LinkBehavior = LinkBehavior.HoverUnderline
         NightLinkLabel1.LinkColor = Color.FromArgb(CByte(242), CByte(93), CByte(89))
-        NightLinkLabel1.Location = New Point(481, 329)
+        NightLinkLabel1.Location = New Point(455, 327)
         NightLinkLabel1.Name = "NightLinkLabel1"
         NightLinkLabel1.Size = New Size(88, 15)
         NightLinkLabel1.TabIndex = 20
@@ -448,14 +448,14 @@ Partial Class Form1
         TableLayoutPanel6.Controls.Add(btnShowStatistics, 0, 0)
         TableLayoutPanel6.Controls.Add(btnUFS2Image, 0, 3)
         TableLayoutPanel6.Controls.Add(btnPkgManager, 1, 3)
-        TableLayoutPanel6.Location = New Point(30, 325)
+        TableLayoutPanel6.Location = New Point(27, 330)
         TableLayoutPanel6.Name = "TableLayoutPanel6"
         TableLayoutPanel6.RowCount = 4
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 33.33F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Absolute, 33F))
-        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 33.34F))
-        TableLayoutPanel6.Size = New Size(358, 132)
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.RowStyles.Add(New RowStyle(SizeType.Percent, 25F))
+        TableLayoutPanel6.Size = New Size(358, 130)
         TableLayoutPanel6.TabIndex = 23
         ' 
         ' Button5
@@ -465,9 +465,9 @@ Partial Class Form1
         Button5.FlatStyle = FlatStyle.System
         Button5.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         Button5.ForeColor = Color.Black
-        Button5.Location = New Point(176, 69)
+        Button5.Location = New Point(176, 67)
         Button5.Name = "Button5"
-        Button5.Size = New Size(179, 27)
+        Button5.Size = New Size(179, 26)
         Button5.TabIndex = 5
         Button5.Text = "Stats"
         Button5.UseVisualStyleBackColor = False
@@ -480,9 +480,9 @@ Partial Class Form1
         btnPayloadManager.FlatStyle = FlatStyle.System
         btnPayloadManager.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnPayloadManager.ForeColor = Color.Black
-        btnPayloadManager.Location = New Point(3, 69)
+        btnPayloadManager.Location = New Point(3, 67)
         btnPayloadManager.Name = "btnPayloadManager"
-        btnPayloadManager.Size = New Size(167, 27)
+        btnPayloadManager.Size = New Size(167, 26)
         btnPayloadManager.TabIndex = 4
         btnPayloadManager.Text = "btnPayloadManager"
         btnPayloadManager.UseVisualStyleBackColor = False
@@ -494,9 +494,9 @@ Partial Class Form1
         btnAdvancedOps.FlatStyle = FlatStyle.System
         btnAdvancedOps.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnAdvancedOps.ForeColor = Color.Black
-        btnAdvancedOps.Location = New Point(176, 36)
+        btnAdvancedOps.Location = New Point(176, 35)
         btnAdvancedOps.Name = "btnAdvancedOps"
-        btnAdvancedOps.Size = New Size(179, 27)
+        btnAdvancedOps.Size = New Size(179, 26)
         btnAdvancedOps.TabIndex = 3
         btnAdvancedOps.Text = "btnAdvancedOps"
         btnAdvancedOps.UseVisualStyleBackColor = False
@@ -508,9 +508,9 @@ Partial Class Form1
         btnBatchProcess.FlatStyle = FlatStyle.System
         btnBatchProcess.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnBatchProcess.ForeColor = Color.Black
-        btnBatchProcess.Location = New Point(3, 36)
+        btnBatchProcess.Location = New Point(3, 35)
         btnBatchProcess.Name = "btnBatchProcess"
-        btnBatchProcess.Size = New Size(167, 27)
+        btnBatchProcess.Size = New Size(167, 26)
         btnBatchProcess.TabIndex = 2
         btnBatchProcess.Text = "btnBatchProcess"
         btnBatchProcess.UseVisualStyleBackColor = False
@@ -524,7 +524,7 @@ Partial Class Form1
         btnElfInspector.ForeColor = Color.Black
         btnElfInspector.Location = New Point(176, 3)
         btnElfInspector.Name = "btnElfInspector"
-        btnElfInspector.Size = New Size(179, 27)
+        btnElfInspector.Size = New Size(179, 26)
         btnElfInspector.TabIndex = 1
         btnElfInspector.Text = "btnElfInspector"
         btnElfInspector.UseVisualStyleBackColor = False
@@ -538,39 +538,41 @@ Partial Class Form1
         btnShowStatistics.ForeColor = Color.Black
         btnShowStatistics.Location = New Point(3, 3)
         btnShowStatistics.Name = "btnShowStatistics"
-        btnShowStatistics.Size = New Size(167, 27)
+        btnShowStatistics.Size = New Size(167, 26)
         btnShowStatistics.TabIndex = 0
         btnShowStatistics.Text = "Stats"
         btnShowStatistics.UseVisualStyleBackColor = False
-        '
+        ' 
         ' btnUFS2Image
-        '
+        ' 
         btnUFS2Image.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
         btnUFS2Image.Dock = DockStyle.Fill
         btnUFS2Image.FlatStyle = FlatStyle.System
         btnUFS2Image.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnUFS2Image.ForeColor = Color.Black
+        btnUFS2Image.Location = New Point(3, 99)
         btnUFS2Image.Name = "btnUFS2Image"
-        btnUFS2Image.Size = New Size(167, 27)
+        btnUFS2Image.Size = New Size(167, 28)
         btnUFS2Image.TabIndex = 6
         btnUFS2Image.Text = "btnUFS2Image"
         btnUFS2Image.UseVisualStyleBackColor = False
-        '
+        ' 
         ' btnPkgManager
-        '
+        ' 
         btnPkgManager.BackColor = Color.FromArgb(CByte(137), CByte(206), CByte(248))
         btnPkgManager.Dock = DockStyle.Fill
         btnPkgManager.FlatStyle = FlatStyle.System
         btnPkgManager.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         btnPkgManager.ForeColor = Color.Black
+        btnPkgManager.Location = New Point(176, 99)
         btnPkgManager.Name = "btnPkgManager"
-        btnPkgManager.Size = New Size(179, 27)
+        btnPkgManager.Size = New Size(179, 28)
         btnPkgManager.TabIndex = 7
         btnPkgManager.Text = "btnPkgManager"
         btnPkgManager.UseVisualStyleBackColor = False
-        '
+        ' 
         ' lblDragDropHint
-        '
+        ' 
         lblDragDropHint.AutoSize = True
         lblDragDropHint.BackColor = Color.Transparent
         lblDragDropHint.ForeColor = Color.Gray
@@ -592,7 +594,7 @@ Partial Class Form1
         chklibcpatch.Font = New Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
         chklibcpatch.ForeColor = Color.FromArgb(CByte(66), CByte(78), CByte(90))
         chklibcpatch.HoverBorderColor = Color.FromArgb(CByte(44), CByte(156), CByte(218))
-        chklibcpatch.Location = New Point(690, 385)
+        chklibcpatch.Location = New Point(718, 390)
         chklibcpatch.Name = "chklibcpatch"
         chklibcpatch.Size = New Size(147, 23)
         chklibcpatch.TabIndex = 25
@@ -603,7 +605,7 @@ Partial Class Form1
         AllowDrop = True
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(885, 503)
+        ClientSize = New Size(906, 555)
         Controls.Add(chklibcpatch)
         Controls.Add(lblDragDropHint)
         Controls.Add(TableLayoutPanel6)
