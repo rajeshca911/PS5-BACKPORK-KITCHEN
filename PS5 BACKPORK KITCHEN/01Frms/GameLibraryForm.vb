@@ -182,7 +182,20 @@ Public Class GameLibraryForm
             .AllowUserToOrderColumns = True
         }
 
+        dgvGames.RowTemplate.Height = 50
+
         AddHandler dgvGames.ColumnHeaderMouseClick, AddressOf DgvGames_ColumnHeaderMouseClick
+
+        ' Cover art column
+        dgvGames.Columns.Add(New DataGridViewImageColumn With {
+            .Name = "colCover",
+            .HeaderText = "",
+            .Width = 50,
+            .ImageLayout = DataGridViewImageCellLayout.Zoom,
+            .DefaultCellStyle = New DataGridViewCellStyle With {
+                .NullValue = Nothing
+            }
+        })
 
         ' Configure columns
         dgvGames.Columns.Add(New DataGridViewTextBoxColumn With {
@@ -336,10 +349,45 @@ Public Class GameLibraryForm
             Next
 
             UpdateStatistics()
+            LoadCoverArtAsync()
         Catch ex As Exception
             MessageBox.Show($"Error updating grid: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
         dgvGames.ResumeLayout()
+    End Sub
+
+    Private Async Sub LoadCoverArtAsync()
+        If dgvGames Is Nothing OrElse dgvGames.Rows.Count = 0 Then Return
+
+        ' First pass: load cached images synchronously
+        For Each row As DataGridViewRow In dgvGames.Rows
+            Dim gameId = TryCast(row.Cells("colGameId").Value, String)
+            If Not String.IsNullOrEmpty(gameId) Then
+                Dim cached = CoverArtService.GetCachedImage(gameId)
+                If cached IsNot Nothing Then
+                    row.Cells("colCover").Value = cached
+                End If
+            End If
+        Next
+
+        ' Second pass: fetch missing covers asynchronously
+        For i As Integer = 0 To dgvGames.Rows.Count - 1
+            If i >= dgvGames.Rows.Count Then Exit For
+            Dim row = dgvGames.Rows(i)
+
+            If row.Cells("colCover").Value Is Nothing Then
+                Dim gameId = TryCast(row.Cells("colGameId").Value, String)
+                If Not String.IsNullOrEmpty(gameId) Then
+                    Try
+                        Dim img = Await CoverArtService.GetCoverArtAsync(gameId)
+                        If img IsNot Nothing AndAlso i < dgvGames.Rows.Count Then
+                            dgvGames.Rows(i).Cells("colCover").Value = img
+                        End If
+                    Catch
+                    End Try
+                End If
+            End If
+        Next
     End Sub
 
     Private Sub UpdateStatistics()
