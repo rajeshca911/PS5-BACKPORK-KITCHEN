@@ -315,6 +315,33 @@ Public Class GameSearchForm
             Next
             contextMenu.Items.Add(openMenu)
 
+            contextMenu.Items.Add(New ToolStripSeparator())
+
+            ' DOWNLOAD submenu (pick host)
+            If result.DownloadLinks.Count = 1 Then
+                Dim mnuDl As New ToolStripMenuItem("Download File")
+                AddHandler mnuDl.Click, AddressOf DownloadFile_Click
+                contextMenu.Items.Add(mnuDl)
+            Else
+                Dim dlMenu As New ToolStripMenuItem("Download File")
+                For Each link In result.DownloadLinks
+                    Dim dlItem As New ToolStripMenuItem(link.Host)
+                    Dim capturedUrl = link.Url
+                    AddHandler dlItem.Click,
+                        Sub() DownloadSingleHost(capturedUrl)
+                    dlMenu.DropDownItems.Add(dlItem)
+                Next
+                contextMenu.Items.Add(dlMenu)
+            End If
+
+            ' DOWNLOAD AUTO-FAILOVER (try all hosts)
+            If result.DownloadLinks.Count > 1 Then
+                Dim mnuAutoDownload As New ToolStripMenuItem("Download (Auto - Try All Hosts)")
+                mnuAutoDownload.Font = New Font(mnuAutoDownload.Font, FontStyle.Bold)
+                AddHandler mnuAutoDownload.Click, AddressOf DownloadAutoFailover_Click
+                contextMenu.Items.Add(mnuAutoDownload)
+            End If
+
         End If
 
     End Sub
@@ -819,6 +846,70 @@ Public Class GameSearchForm
         Dim text = String.Join(vbCrLf, links.Select(Function(l) $"{l.Key}: {l.Value}"))
         Clipboard.SetText(text)
         lblStatus.Text = $"Copied {links.Count} download link(s) to clipboard"
+    End Sub
+
+    ''' <summary>
+    ''' Downloads from a single specific host URL.
+    ''' </summary>
+    Private Sub DownloadSingleHost(hostUrl As String)
+        Using fbd As New FolderBrowserDialog()
+            fbd.Description = "Select download folder"
+            If Not String.IsNullOrEmpty(_lastDownloadFolder) AndAlso IO.Directory.Exists(_lastDownloadFolder) Then
+                fbd.SelectedPath = _lastDownloadFolder
+            End If
+            If fbd.ShowDialog() <> DialogResult.OK Then Return
+            _lastDownloadFolder = fbd.SelectedPath
+        End Using
+
+        Using dlForm As New DownloadProgressForm(hostUrl, _lastDownloadFolder)
+            Dim dlResult = dlForm.ShowDialog(Me)
+            If dlResult = DialogResult.OK AndAlso Not String.IsNullOrEmpty(dlForm.DownloadedFilePath) Then
+                lblStatus.Text = $"Download complete: {IO.Path.GetFileName(dlForm.DownloadedFilePath)}"
+                ShowDownloadComplete(dlForm.DownloadedFilePath)
+            ElseIf dlResult = DialogResult.Cancel Then
+                lblStatus.Text = "Download cancelled"
+            End If
+        End Using
+    End Sub
+
+    ''' <summary>
+    ''' Auto-failover download: tries all hosts in priority order until one works.
+    ''' </summary>
+    Private Sub DownloadAutoFailover_Click(sender As Object, e As EventArgs)
+        Dim result = GetSelectedResult()
+        If result Is Nothing OrElse result.DownloadLinks Is Nothing OrElse result.DownloadLinks.Count = 0 Then Return
+
+        Using fbd As New FolderBrowserDialog()
+            fbd.Description = "Select download folder"
+            If Not String.IsNullOrEmpty(_lastDownloadFolder) AndAlso IO.Directory.Exists(_lastDownloadFolder) Then
+                fbd.SelectedPath = _lastDownloadFolder
+            End If
+            If fbd.ShowDialog() <> DialogResult.OK Then Return
+            _lastDownloadFolder = fbd.SelectedPath
+        End Using
+
+        Using dlForm As New DownloadAutoFailoverForm(result.DownloadLinks, _lastDownloadFolder)
+            Dim dlResult = dlForm.ShowDialog(Me)
+            If dlResult = DialogResult.OK AndAlso Not String.IsNullOrEmpty(dlForm.DownloadedFilePath) Then
+                lblStatus.Text = $"Download complete: {IO.Path.GetFileName(dlForm.DownloadedFilePath)}"
+                ShowDownloadComplete(dlForm.DownloadedFilePath)
+            ElseIf dlResult = DialogResult.Cancel Then
+                lblStatus.Text = "Download cancelled"
+            End If
+        End Using
+    End Sub
+
+    Private Sub ShowDownloadComplete(filePath As String)
+        Dim msgResult = MessageBox.Show(
+            $"Download complete!{vbCrLf}{vbCrLf}{filePath}{vbCrLf}{vbCrLf}Open containing folder?",
+            "Download Complete", MessageBoxButtons.YesNo, MessageBoxIcon.Information)
+        If msgResult = DialogResult.Yes Then
+            Process.Start(New ProcessStartInfo With {
+                .FileName = "explorer.exe",
+                .Arguments = $"/select,""{filePath}""",
+                .UseShellExecute = True
+            })
+        End If
     End Sub
 
 End Class
