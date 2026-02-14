@@ -24,6 +24,7 @@ Partial Class CreditsForm
     Private Sub InitializeComponent()
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(CreditsForm))
         AirForm1 = New ReaLTaiizor.Forms.AirForm()
+        Label1 = New Label()
         SkyLabel8 = New ReaLTaiizor.Controls.SkyLabel()
         SkyLabel7 = New ReaLTaiizor.Controls.SkyLabel()
         CrownDockPanel1 = New ReaLTaiizor.Docking.Crown.CrownDockPanel()
@@ -49,7 +50,6 @@ Partial Class CreditsForm
         NightLinkLabel3 = New ReaLTaiizor.Controls.NightLinkLabel()
         SkyLabel4 = New ReaLTaiizor.Controls.SkyLabel()
         NightLinkLabel4 = New ReaLTaiizor.Controls.NightLinkLabel()
-        Label1 = New Label()
         AirForm1.SuspendLayout()
         TableLayoutPanel1.SuspendLayout()
         SuspendLayout()
@@ -73,13 +73,22 @@ Partial Class CreditsForm
         AirForm1.Name = "AirForm1"
         AirForm1.NoRounding = False
         AirForm1.Sizable = True
-        AirForm1.Size = New Size(663, 448)
+        AirForm1.Size = New Size(1133, 543)
         AirForm1.SmartBounds = True
         AirForm1.StartPosition = FormStartPosition.CenterScreen
         AirForm1.TabIndex = 0
         AirForm1.Text = "Credits and Reference"
         AirForm1.TransparencyKey = Color.Fuchsia
         AirForm1.Transparent = False
+        ' 
+        ' Label1
+        ' 
+        Label1.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left
+        Label1.Location = New Point(12, 354)
+        Label1.Name = "Label1"
+        Label1.Size = New Size(644, 137)
+        Label1.TabIndex = 12
+        Label1.Text = resources.GetString("Label1.Text")
         ' 
         ' SkyLabel8
         ' 
@@ -88,7 +97,7 @@ Partial Class CreditsForm
         SkyLabel8.BackColor = Color.FromArgb(CByte(60), CByte(63), CByte(65))
         SkyLabel8.Font = New Font("Verdana", 6.75F, FontStyle.Bold)
         SkyLabel8.ForeColor = Color.White
-        SkyLabel8.Location = New Point(4, 431)
+        SkyLabel8.Location = New Point(4, 526)
         SkyLabel8.Name = "SkyLabel8"
         SkyLabel8.Size = New Size(169, 12)
         SkyLabel8.TabIndex = 11
@@ -102,7 +111,7 @@ Partial Class CreditsForm
         SkyLabel7.BackColor = Color.FromArgb(CByte(60), CByte(63), CByte(65))
         SkyLabel7.Font = New Font("Verdana", 6.75F, FontStyle.Bold)
         SkyLabel7.ForeColor = Color.White
-        SkyLabel7.Location = New Point(497, 430)
+        SkyLabel7.Location = New Point(967, 525)
         SkyLabel7.Name = "SkyLabel7"
         SkyLabel7.Size = New Size(143, 12)
         SkyLabel7.TabIndex = 10
@@ -113,9 +122,9 @@ Partial Class CreditsForm
         ' 
         CrownDockPanel1.BackColor = Color.FromArgb(CByte(60), CByte(63), CByte(65))
         CrownDockPanel1.Dock = DockStyle.Bottom
-        CrownDockPanel1.Location = New Point(0, 427)
+        CrownDockPanel1.Location = New Point(0, 522)
         CrownDockPanel1.Name = "CrownDockPanel1"
-        CrownDockPanel1.Size = New Size(663, 21)
+        CrownDockPanel1.Size = New Size(1133, 21)
         CrownDockPanel1.TabIndex = 1
         ' 
         ' TableLayoutPanel1
@@ -458,20 +467,11 @@ Partial Class CreditsForm
         NightLinkLabel4.TextAlign = ContentAlignment.MiddleLeft
         NightLinkLabel4.VisitedLinkColor = Color.FromArgb(CByte(254), CByte(89), CByte(84))
         ' 
-        ' Label1
-        ' 
-        Label1.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left
-        Label1.Location = New Point(12, 259)
-        Label1.Name = "Label1"
-        Label1.Size = New Size(644, 137)
-        Label1.TabIndex = 12
-        Label1.Text = resources.GetString("Label1.Text")
-        ' 
         ' CreditsForm
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(663, 448)
+        ClientSize = New Size(1133, 543)
         Controls.Add(AirForm1)
         FormBorderStyle = FormBorderStyle.None
         Name = "CreditsForm"
