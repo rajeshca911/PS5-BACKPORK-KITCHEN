@@ -24,6 +24,7 @@ Public Class ElfInspectorForm
     Private btnAnalyze As ToolStripButton
     Private btnRefresh As ToolStripButton
     Private btnExport As ToolStripButton
+    Private btnInspect As ToolStripButton
     Private toolStripSeparator1 As ToolStripSeparator
     Private lblFolder As ToolStripLabel
     Private txtFolder As ToolStripTextBox
@@ -32,7 +33,6 @@ Public Class ElfInspectorForm
     Private lblStatus As ToolStripStatusLabel
     Private progressBar As ToolStripProgressBar
 
-    'adding options
     Private grpElfMode As GroupBox
 
     Private rbOverwrite As RadioButton
@@ -53,261 +53,6 @@ Public Class ElfInspectorForm
         End If
     End Sub
 
-    '    Private Sub InitializeComponent()
-    '        Me.Text = "ELF Inspector - SDK Analysis"
-    '        Me.Size = New Size(1000, 700)
-    '        Me.StartPosition = FormStartPosition.CenterParent
-
-    '        ' Create ToolStrip
-    '        toolStrip = New ToolStrip With {
-    '            .GripStyle = ToolStripGripStyle.Hidden
-    '        }
-
-    '        lblFolder = New ToolStripLabel With {
-    '            .Text = "Folder:"
-    '        }
-
-    '        txtFolder = New ToolStripTextBox With {
-    '            .Size = New Size(400, 23),
-    '            .Text = currentFolderPath
-    '        }
-
-    '        btnBrowse = New ToolStripButton With {
-    '            .Text = "📁",
-    '            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-    '            .ToolTipText = "Browse folder"
-    '        }
-    '        AddHandler btnBrowse.Click, AddressOf BtnBrowse_Click
-
-    '        btnAnalyze = New ToolStripButton With {
-    '            .Text = "🔍 Analyze",
-    '            .DisplayStyle = ToolStripItemDisplayStyle.Text
-    '        }
-    '        AddHandler btnAnalyze.Click, AddressOf BtnAnalyze_Click
-
-    '        toolStripSeparator1 = New ToolStripSeparator()
-
-    '        btnRefresh = New ToolStripButton With {
-    '            .Text = "🔄 Refresh",
-    '            .DisplayStyle = ToolStripItemDisplayStyle.Text
-    '        }
-    '        AddHandler btnRefresh.Click, AddressOf BtnRefresh_Click
-
-    '        btnExport = New ToolStripButton With {
-    '            .Text = "💾 Export Report",
-    '            .DisplayStyle = ToolStripItemDisplayStyle.Text
-    '        }
-    '        AddHandler btnExport.Click, AddressOf BtnExport_Click
-
-    '        toolStrip.Items.AddRange({lblFolder, txtFolder, btnBrowse, btnAnalyze, toolStripSeparator1, btnRefresh, btnExport})
-
-    '        ' Create SplitContainer
-    '        splitContainer = New SplitContainer With {
-    '            .Dock = DockStyle.Fill,
-    '            .Orientation = Orientation.Horizontal,
-    '            .SplitterDistance = 400
-    '        }
-
-    '        ' Create Context Menu
-    '        contextMenu = New ContextMenuStrip()
-
-    '        mnuDecrypt = New ToolStripMenuItem With {
-    '            .Text = "🔓 Decrypt",
-    '            .ToolTipText = "Decrypt selected ELF(s) using SelfUtil"
-    '        }
-    '        AddHandler mnuDecrypt.Click, AddressOf MnuDecrypt_Click
-
-    '        mnuDowngrade = New ToolStripMenuItem With {
-    '            .Text = "⬇ Downgrade / Backport",
-    '            .ToolTipText = "Downgrade selected ELF(s) to target firmware"
-    '        }
-    '        AddHandler mnuDowngrade.Click, AddressOf MnuDowngrade_Click
-
-    '        mnuPatch = New ToolStripMenuItem With {
-    '            .Text = "🔧 Patch",
-    '            .ToolTipText = "Apply SDK/FW patches to selected ELF(s)"
-    '        }
-    '        AddHandler mnuPatch.Click, AddressOf MnuPatch_Click
-
-    '        mnuSign = New ToolStripMenuItem With {
-    '            .Text = "✍ Sign",
-    '            .ToolTipText = "Sign selected ELF(s)"
-    '        }
-    '        AddHandler mnuSign.Click, AddressOf MnuSign_Click
-
-    '        mnuSeparator1 = New ToolStripSeparator()
-
-    '        mnuFullPipeline = New ToolStripMenuItem With {
-    '            .Text = "⚡ Full Pipeline (Decrypt → Patch → Sign)",
-    '            .ToolTipText = "Run complete processing pipeline on selected ELF(s)",
-    '            .Font = New Font(contextMenu.Font, FontStyle.Bold)
-    '        }
-    '        AddHandler mnuFullPipeline.Click, AddressOf MnuFullPipeline_Click
-
-    '        mnuSeparator2 = New ToolStripSeparator()
-
-    '        mnuOpenLocation = New ToolStripMenuItem With {
-    '            .Text = "📂 Open File Location",
-    '            .ToolTipText = "Open folder containing selected file"
-    '        }
-    '        AddHandler mnuOpenLocation.Click, AddressOf MnuOpenLocation_Click
-
-    '        contextMenu.Items.AddRange({
-    '            mnuDecrypt,
-    '            mnuDowngrade,
-    '            mnuPatch,
-    '            mnuSign,
-    '            mnuSeparator1,
-    '            mnuFullPipeline,
-    '            mnuSeparator2,
-    '            mnuOpenLocation
-    '        })
-
-    '        ' Top panel - DataGridView
-    '        dgvFiles = New DataGridView With {
-    '            .Dock = DockStyle.Fill,
-    '            .AllowUserToAddRows = False,
-    '            .AllowUserToDeleteRows = False,
-    '            .ReadOnly = True,
-    '            .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-    '            .MultiSelect = True,
-    '            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-    '            .RowHeadersVisible = False,
-    '            .BackgroundColor = Color.White,
-    '            .BorderStyle = BorderStyle.None,
-    '            .ContextMenuStrip = contextMenu
-    '        }
-
-    '        ' Add columns
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "FileName",
-    '            .HeaderText = "File Name",
-    '            .FillWeight = 30
-    '        })
-
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "Type",
-    '            .HeaderText = "Type",
-    '            .FillWeight = 10
-    '        })
-
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "PS5SDK",
-    '            .HeaderText = "PS5 SDK",
-    '            .FillWeight = 15
-    '        })
-
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "PS4SDK",
-    '            .HeaderText = "PS4 SDK",
-    '            .FillWeight = 15
-    '        })
-
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "Size",
-    '            .HeaderText = "Size",
-    '            .FillWeight = 10
-    '        })
-
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "Patchable",
-    '            .HeaderText = "Patchable",
-    '            .FillWeight = 10
-    '        })
-
-    '        dgvFiles.Columns.Add(New DataGridViewTextBoxColumn With {
-    '            .Name = "Path",
-    '            .HeaderText = "Full Path",
-    '            .Visible = False
-    '        })
-
-    '        AddHandler dgvFiles.SelectionChanged, AddressOf DgvFiles_SelectionChanged
-
-    '        'group box for options
-    '        ' ELF Operation Mode Group
-    '        grpElfMode = New GroupBox With {
-    '    .Text = "ELF Operation Mode",
-    '    .Dock = DockStyle.Top,
-    '    .Height = 70,
-    '     .BackColor = Color.FromArgb(245, 248, 252)
-    '}
-
-    '        rbOverwrite = New RadioButton With {
-    '    .Text = "Overwrite original ELF (unsafe)",
-    '    .Location = New Point(10, 20),
-    '    .AutoSize = True,
-    '    .ForeColor = Color.FromArgb(160, 60, 60) ' muted red
-    '}
-    '        rbKeepOriginal = New RadioButton With {
-    '    .Text = "Keep original, create new ELF (_decrypted / _signed)",
-    '    .Location = New Point(10, 40),
-    '    .AutoSize = True,
-    '    .Checked = True,
-    '    .ForeColor = Color.FromArgb(40, 120, 80), ' soft green
-    '    .Font = New Font(SystemFonts.DefaultFont, FontStyle.Bold)
-    '}
-
-    '        rbBackupThenModify = New RadioButton With {
-    '    .Text = "Backup original (.bak) then modify ELF",
-    '    .Location = New Point(420, 20),
-    '    .AutoSize = True
-    '}
-
-    '        grpElfMode.Controls.AddRange({
-    '    rbOverwrite,
-    '    rbKeepOriginal,
-    '    rbBackupThenModify
-    '})
-
-    '        'Me.Controls.Add(grpElfMode)
-    '        'grpElfMode.BringToFront()
-
-    '        'split container
-    '        splitContainer.Panel1.Controls.Add(dgvFiles)
-
-    '        ' Bottom panel - Details
-    '        txtDetails = New RichTextBox With {
-    '            .Dock = DockStyle.Fill,
-    '            .ReadOnly = True,
-    '            .Font = New Font("Consolas", 9),
-    '            .BackColor = Color.FromArgb(250, 250, 250)
-    '        }
-
-    '        splitContainer.Panel2.Controls.Add(txtDetails)
-
-    '        ' Status Strip
-    '        statusStrip = New StatusStrip()
-
-    '        lblStatus = New ToolStripStatusLabel With {
-    '            .Text = "Ready",
-    '            .Spring = True,
-    '            .TextAlign = ContentAlignment.MiddleLeft
-    '        }
-
-    '        progressBar = New ToolStripProgressBar With {
-    '            .Visible = False
-    '        }
-
-    '        statusStrip.Items.AddRange({lblStatus, progressBar})
-    '        'add minimum sizes
-    '        'splitContainer.Panel1MinSize = 150
-    '        'splitContainer.Panel2MinSize = 200
-
-    '        ' Add controls to form
-    '        Me.Controls.Add(splitContainer)
-    '        Me.Controls.Add(toolStrip)
-    '        Me.Controls.Add(statusStrip)
-    '        splitContainer.Panel1.Controls.Add(dgvFiles)
-
-    '        ' Panel2 = ELF options + Details
-    '        splitContainer.Panel2.Controls.Add(txtDetails)
-    '        splitContainer.Panel2.Controls.Add(grpElfMode)
-
-    '        ' Docking order matters
-    '        grpElfMode.Dock = DockStyle.Top
-    '        txtDetails.Dock = DockStyle.Fill
-
-    '    End Sub
     Private Sub InitializeComponent()
 
         Me.Text = "ELF Inspector - SDK Analysis"
@@ -345,16 +90,22 @@ Public Class ElfInspectorForm
         btnAnalyze = New ToolStripButton("🔍 Analyze")
         btnRefresh = New ToolStripButton("🔄 Refresh")
         btnExport = New ToolStripButton("💾 Export")
+        btnInspect = New ToolStripButton("🔬 Inspect") With {
+        .ToolTipText = "Show full ELF inspection report for selected file"
+    }
 
         AddHandler btnBrowse.Click, AddressOf BtnBrowse_Click
         AddHandler btnAnalyze.Click, AddressOf BtnAnalyze_Click
         AddHandler btnRefresh.Click, AddressOf BtnRefresh_Click
         AddHandler btnExport.Click, AddressOf BtnExport_Click
+        AddHandler btnInspect.Click, AddressOf BtnInspect_Click
 
         toolStrip.Items.AddRange({
         lblFolder, txtFolder, btnBrowse, btnAnalyze,
         New ToolStripSeparator(),
-        btnRefresh, btnExport
+        btnRefresh, btnExport,
+        New ToolStripSeparator(),
+        btnInspect
     })
 
         root.Controls.Add(toolStrip, 0, 0)
@@ -378,6 +129,7 @@ Public Class ElfInspectorForm
         .RowHeadersVisible = False
     }
 
+        AddHandler dgvFiles.SelectionChanged, AddressOf DgvFiles_SelectionChanged
         splitContainer.Panel1.Controls.Add(dgvFiles)
 
         ' ================= BOTTOM PANEL LAYOUT =================
@@ -472,6 +224,12 @@ Public Class ElfInspectorForm
     }
         AddHandler mnuOpenLocation.Click, AddressOf MnuOpenLocation_Click
 
+        Dim mnuHexView As New ToolStripMenuItem With {
+            .Text = "Hex View",
+            .ToolTipText = "View raw hex dump of selected file"
+        }
+        AddHandler mnuHexView.Click, AddressOf MnuHexView_Click
+
         contextMenu.Items.AddRange({
         mnuDecrypt,
         mnuDowngrade,
@@ -480,7 +238,9 @@ Public Class ElfInspectorForm
         mnuSeparator1,
         mnuFullPipeline,
         mnuSeparator2,
-        mnuOpenLocation
+        mnuOpenLocation,
+        New ToolStripSeparator(),
+        mnuHexView
     })
 
         ' attach to grid
@@ -578,6 +338,26 @@ Public Class ElfInspectorForm
         End If
     End Sub
 
+    Private Sub BtnInspect_Click(sender As Object, e As EventArgs)
+        Dim selectedFiles = GetSelectedFilePaths()
+        If selectedFiles.Count = 0 Then
+            MessageBox.Show("Select an ELF file first.", "No Selection",
+                          MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Try
+            Dim report = ElfInspectorService.InspectElfFile(selectedFiles(0))
+            Dim reportText = ElfInspectorService.GenerateInspectionReport(report)
+
+            txtDetails.Clear()
+            txtDetails.Text = reportText
+        Catch ex As Exception
+            MessageBox.Show($"Error inspecting file: {ex.Message}", "Error",
+                          MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
     Private Sub AnalyzeFolder(folderPath As String)
         Try
             dgvFiles.Rows.Clear()
@@ -661,92 +441,6 @@ Public Class ElfInspectorForm
         End Try
     End Sub
 
-    'Private Sub DgvFiles_SelectionChanged(sender As Object, e As EventArgs)
-    '    If dgvFiles.SelectedRows.Count > 0 Then
-    '        Dim row = dgvFiles.SelectedRows(0)
-    '        Dim filePath = row.Cells("Path").Value.ToString()
-
-    '        Try
-    '            txtDetails.Clear()
-
-    '            Dim info = ElfInspector.ReadInfo(filePath)
-    '            Dim fileInfo As New IO.FileInfo(filePath)
-
-    '            txtDetails.AppendText("═══════════════════════════════════════════════" & vbCrLf)
-    '            txtDetails.AppendText("  ELF FILE DETAILS" & vbCrLf)
-    '            txtDetails.AppendText("═══════════════════════════════════════════════" & vbCrLf & vbCrLf)
-
-    '            txtDetails.AppendText($"File Name:       {fileInfo.Name}" & vbCrLf)
-    '            txtDetails.AppendText($"Full Path:       {filePath}" & vbCrLf)
-    '            txtDetails.AppendText($"File Size:       {FormatBytes(fileInfo.Length)}" & vbCrLf)
-    '            txtDetails.AppendText($"Type:            {info.FileType}" & vbCrLf)
-    '            txtDetails.AppendText($"Created:         {fileInfo.CreationTime}" & vbCrLf)
-    '            txtDetails.AppendText($"Modified:        {fileInfo.LastWriteTime}" & vbCrLf & vbCrLf)
-
-    '            txtDetails.AppendText("───────────────────────────────────────────────" & vbCrLf)
-    '            txtDetails.AppendText("  SDK INFORMATION" & vbCrLf)
-    '            txtDetails.AppendText("───────────────────────────────────────────────" & vbCrLf & vbCrLf)
-
-    '            If info.Ps5SdkVersion > 0 Then
-    '                txtDetails.AppendText($"PS5 SDK:         {info.Ps5SdkVersion:X8} (FW {ToFirmware(info.Ps5SdkVersion)})" & vbCrLf)
-    '            Else
-    '                txtDetails.AppendText($"PS5 SDK:         Not found" & vbCrLf)
-    '            End If
-
-    '            If info.Ps4SdkVersion > 0 Then
-    '                txtDetails.AppendText($"PS4 SDK:         {info.Ps4SdkVersion:X8}" & vbCrLf)
-    '            Else
-    '                txtDetails.AppendText($"PS4 SDK:         Not found" & vbCrLf)
-    '            End If
-
-    '            txtDetails.AppendText(vbCrLf)
-    '            txtDetails.AppendText($"Patchable:       {If(info.IsPatchable, "YES ✓", "NO ✗")}" & vbCrLf)
-
-    '            If Not info.IsPatchable AndAlso Not String.IsNullOrEmpty(info.Message) Then
-    '                txtDetails.AppendText($"Reason:          {info.Message}" & vbCrLf)
-    '            End If
-    '        Catch ex As Exception
-    '            txtDetails.AppendText($"Error reading file details: {ex.Message}")
-    '        End Try
-    '    End If
-    'End Sub
-
-    'Private Sub ShowSummary(analysis As SdkDetector.FolderSdkAnalysis, totalFiles As Integer, patchableFiles As Integer, totalSize As Long)
-    '    txtDetails.Clear()
-
-    '    txtDetails.AppendText("═══════════════════════════════════════════════" & vbCrLf)
-    '    txtDetails.AppendText("  FOLDER ANALYSIS SUMMARY" & vbCrLf)
-    '    txtDetails.AppendText("═══════════════════════════════════════════════" & vbCrLf & vbCrLf)
-
-    '    txtDetails.AppendText($"Total Files:              {totalFiles}" & vbCrLf)
-    '    txtDetails.AppendText($"Patchable Files:          {patchableFiles}" & vbCrLf)
-    '    txtDetails.AppendText($"Total Size:               {FormatBytes(totalSize)}" & vbCrLf & vbCrLf)
-
-    '    If analysis.FilesAnalyzed > 0 Then
-    '        txtDetails.AppendText("───────────────────────────────────────────────" & vbCrLf)
-    '        txtDetails.AppendText("  SDK DETECTION" & vbCrLf)
-    '        txtDetails.AppendText("───────────────────────────────────────────────" & vbCrLf & vbCrLf)
-
-    '        txtDetails.AppendText($"Files Analyzed:           {analysis.FilesAnalyzed}" & vbCrLf)
-
-    '        If analysis.LowestPs5Sdk > 0 Then
-    '            txtDetails.AppendText($"Minimum PS5 SDK:          {analysis.LowestPs5Sdk:X8} (FW {ToFirmware(analysis.LowestPs5Sdk)})" & vbCrLf)
-    '        End If
-
-    '        If analysis.HighestPs5Sdk > 0 Then
-    '            txtDetails.AppendText($"Maximum PS5 SDK:          {analysis.HighestPs5Sdk:X8} (FW {ToFirmware(analysis.HighestPs5Sdk)})" & vbCrLf)
-    '        End If
-
-    '        If analysis.RecommendedTargetSdk > 0 Then
-    '            txtDetails.AppendText(vbCrLf)
-    '            txtDetails.AppendText($"Recommended Target SDK:   {analysis.RecommendedTargetSdk:X8} (FW {ToFirmware(analysis.RecommendedTargetSdk)})" & vbCrLf)
-    '        End If
-    '    End If
-
-    '    txtDetails.AppendText(vbCrLf & "═══════════════════════════════════════════════" & vbCrLf)
-    '    txtDetails.AppendText(vbCrLf & "Select a file from the list above to see detailed information.")
-    'End Sub
-    'remove if you want it and uncomment the above 29-01-2026 modified by Rajesh
     Private Sub WriteHeader(title As String)
         AppendStyled("═══════════════════════════════════════════════" & vbCrLf, Color.Purple)
         AppendStyled($"  {title.ToUpper()}" & vbCrLf, Color.Blue, bold:=True)
@@ -775,18 +469,7 @@ Public Class ElfInspectorForm
         Try
             Dim info = ElfInspector.ReadInfo(filePath)
             Dim fileInfo As New IO.FileInfo(filePath)
-            '            Try
-            '                'try to disable backport option for non patchable files
-            ' in dilemma whether to keep it or not
 
-            '                mnuDecrypt.Enabled = Not info.IsPatchable
-            '                mnuDowngrade.Enabled = info.IsPatchable
-            '                Debug.Print($"decrypt = {Not info.IsPatchable} downgrade = {info.IsPatchable}")
-            '            Catch ex1 As Exception
-            '#If DEBUG Then
-            '                MessageBox.Show(ex1.Message, "Debug Info", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            '#End If
-            '            End Try
             WriteHeader("ELF File Details")
 
             WriteField("File Name", fileInfo.Name)
@@ -824,8 +507,37 @@ Public Class ElfInspectorForm
             If Not info.IsPatchable AndAlso Not String.IsNullOrEmpty(info.Message) Then
                 WriteField("Reason", info.Message)
             End If
+
+            ' Deep ELF inspection
+            Dim report = ElfInspectorService.InspectElfFile(filePath)
+            If report.IsValidElf Then
+                txtDetails.AppendText(vbCrLf)
+                WriteSection("ELF Structure")
+
+                WriteField("Signed (SELF)", If(report.IsSelfSigned, "Yes", "No"))
+                WriteField("Program Headers", report.ProgramHeaders.ToString())
+                WriteField("Section Headers", report.SectionHeaders.ToString())
+                WriteField("Has ProcParam", If(report.HasProcParam, "Yes", "No"))
+                WriteField("Has ModuleParam", If(report.HasModuleParam, "Yes", "No"))
+
+                If report.LibraryDependencies IsNot Nothing AndAlso report.LibraryDependencies.Count > 0 Then
+                    txtDetails.AppendText(vbCrLf)
+                    WriteSection("Library Dependencies")
+                    For Each libName As String In report.LibraryDependencies
+                        txtDetails.AppendText($"  {libName}" & vbCrLf)
+                    Next
+                End If
+
+                If report.Warnings IsNot Nothing AndAlso report.Warnings.Count > 0 Then
+                    txtDetails.AppendText(vbCrLf)
+                    WriteSection("Warnings")
+                    For Each warnMsg As String In report.Warnings
+                        AppendStyled($"  ! {warnMsg}" & vbCrLf, Color.OrangeRed)
+                    Next
+                End If
+            End If
         Catch ex As Exception
-            txtDetails.AppendText("⚠ Error reading file details" & vbCrLf)
+            txtDetails.AppendText("Error reading file details" & vbCrLf)
             txtDetails.AppendText(ex.Message)
         End Try
     End Sub
@@ -896,7 +608,6 @@ Public Class ElfInspectorForm
         txtDetails.SelectionColor = txtDetails.ForeColor
     End Sub
 
-    ' end code edit
     Private Sub BtnExport_Click(sender As Object, e As EventArgs)
         Try
             Using sfd As New SaveFileDialog()
@@ -1076,10 +787,6 @@ Public Class ElfInspectorForm
             ' Show results
             ShowOperationResults("Decrypt Results", results)
             btnRefresh.PerformClick()
-            ' Refresh if in same folder
-            'If selectedFiles.Count > 0 AndAlso Path.GetDirectoryName(selectedFiles(0)) = currentFolderPath Then
-            '    btnRefresh.PerformClick()
-            'End If
         Catch ex As Exception
             progressBar.Visible = False
             MessageBox.Show($"Error during decryption: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
@@ -1498,10 +1205,6 @@ Public Class ElfInspectorForm
             ' Show results
             ShowOperationResults("Sign Results", results)
             btnRefresh.PerformClick()
-            ' Refresh
-            'If selectedFiles.Count > 0 AndAlso Path.GetDirectoryName(selectedFiles(0)) = currentFolderPath Then
-            '    btnRefresh.PerformClick()
-            'End If
         Catch ex As Exception
             progressBar.Visible = False
             MessageBox.Show($"Error during signing: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
@@ -1619,10 +1322,6 @@ Public Class ElfInspectorForm
             ' Show results
             ShowOperationResults("Full Pipeline Results", results)
             btnRefresh.PerformClick()
-            ' Refresh
-            'If selectedFiles.Count > 0 AndAlso Path.GetDirectoryName(selectedFiles(0)) = currentFolderPath Then
-            '    btnRefresh.PerformClick()
-            'End If
         Catch ex As Exception
             progressBar.Visible = False
             MessageBox.Show($"Error during pipeline: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
@@ -1637,10 +1336,23 @@ Public Class ElfInspectorForm
 
         Try
             Dim folderPath = Path.GetDirectoryName(selectedFiles(0))
-            'Process.Start("explorer.exe", $"/select,""{selectedFiles(0)}""")
             OpenFolder(folderPath)
         Catch ex As Exception
             MessageBox.Show($"Error opening location: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub MnuHexView_Click(sender As Object, e As EventArgs)
+        Dim selectedFiles = GetSelectedFilePaths()
+        If selectedFiles.Count = 0 Then Return
+
+        Try
+            Using viewer As New HexViewerForm(selectedFiles(0))
+                viewer.ShowDialog(Me)
+            End Using
+        Catch ex As Exception
+            MessageBox.Show($"Error opening hex viewer: {ex.Message}", "Error",
+                          MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
 
@@ -1701,7 +1413,6 @@ Public Class ElfInspectorForm
         End Using
     End Sub
 
-    'radio buttons for options
     Private Enum ElfWriteMode
         Overwrite
         KeepOriginal
