@@ -243,24 +243,24 @@ Public Class GameSearchForm
         mnuOpenMagnet.Name = "mnuOpenMagnet"
 
         contextMenu.Items.Add(mnuOpenMagnet)
-<<<<<<< Updated upstream
+'<<<<<<< Updated upstream
 
-        contextMenu.Items.Add(New ToolStripSeparator())
+'        contextMenu.Items.Add(New ToolStripSeparator())
 
-        Dim mnuDownload As New ToolStripMenuItem("Download File")
-        AddHandler mnuDownload.Click, AddressOf DownloadFile_Click
-        contextMenu.Items.Add(mnuDownload)
+'        Dim mnuDownload As New ToolStripMenuItem("Download File")
+'        AddHandler mnuDownload.Click, AddressOf DownloadFile_Click
+'        contextMenu.Items.Add(mnuDownload)
 
-        Dim mnuCopyLinks As New ToolStripMenuItem("Copy Download Links")
-        AddHandler mnuCopyLinks.Click, AddressOf CopyDownloadLinks_Click
-        contextMenu.Items.Add(mnuCopyLinks)
-=======
+'        Dim mnuCopyLinks As New ToolStripMenuItem("Copy Download Links")
+'        AddHandler mnuCopyLinks.Click, AddressOf CopyDownloadLinks_Click
+'        contextMenu.Items.Add(mnuCopyLinks)
+'=======
         dgvResults.ContextMenuStrip = contextMenu
 
         'AddHandler dgvResults.CellMouseDown, AddressOf dgvResults_CellMouseDown
         AddHandler contextMenu.Opening, AddressOf ContextMenu_Opening
 
->>>>>>> Stashed changes
+'>>>>>>> Stashed changes
     End Sub
 
     Private Sub ContextMenu_Opening(
@@ -653,26 +653,26 @@ Public Class GameSearchForm
 
 
 
-<<<<<<< Updated upstream
-            Dim magnet = result.MagnetLink
-            If String.IsNullOrEmpty(magnet) Then
-                magnet = Await _searchManager.GetMagnetLinkAsync(result)
-            End If
+    '<<<<<<< Updated upstream
+    '            Dim magnet = result.MagnetLink
+    '            If String.IsNullOrEmpty(magnet) Then
+    '                magnet = Await _searchManager.GetMagnetLinkAsync(result)
+    '            End If
 
-            If Not String.IsNullOrEmpty(magnet) Then
-                Process.Start(New ProcessStartInfo With {
-                    .FileName = magnet,
-                    .UseShellExecute = True
-                })
-                lblStatus.Text = "Opening with torrent client..."
-            Else
-                MessageBox.Show("Could not get magnet link for this torrent.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            End If
+    '            If Not String.IsNullOrEmpty(magnet) Then
+    '                Process.Start(New ProcessStartInfo With {
+    '                    .FileName = magnet,
+    '                    .UseShellExecute = True
+    '                })
+    '                lblStatus.Text = "Opening with torrent client..."
+    '            Else
+    '                MessageBox.Show("Could not get magnet link for this torrent.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+    '            End If
 
-        Catch ex As Exception
-            MessageBox.Show($"Failed to open magnet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
-        End Try
-    End Sub
+    '        Catch ex As Exception
+    '            MessageBox.Show($"Failed to open magnet: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+    '        End Try
+    '    End Sub
 
     Private Sub DownloadFile_Click(sender As Object, e As EventArgs)
         Dim result = GetSelectedResult()
@@ -820,6 +820,5 @@ Public Class GameSearchForm
         Clipboard.SetText(text)
         lblStatus.Text = $"Copied {links.Count} download link(s) to clipboard"
     End Sub
-=======
->>>>>>> Stashed changes
+
 End Class
