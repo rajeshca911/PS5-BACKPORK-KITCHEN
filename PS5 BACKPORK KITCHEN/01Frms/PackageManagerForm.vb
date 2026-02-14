@@ -172,6 +172,7 @@ Public Class PackageManagerForm
         }
         BuildGridColumns()
         AddHandler dgvEntries.SelectionChanged, AddressOf DgvEntries_SelectionChanged
+        BuildEntryContextMenu()
         rightPanel.Controls.Add(dgvEntries, 0, 0)
 
         ' Details
@@ -723,5 +724,193 @@ Public Class PackageManagerForm
         If bytes < 1024L * 1024 * 1024 Then Return $"{bytes / (1024.0 * 1024):F1} MB"
         Return $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
     End Function
+
+    ' ===== ENTRY CONTEXT MENU =====
+
+    Private Sub BuildEntryContextMenu()
+        Dim menu As New ContextMenuStrip()
+
+        Dim mnuExtract As New ToolStripMenuItem("Extract Selected")
+        AddHandler mnuExtract.Click, AddressOf MnuExtractSelected_Click
+        menu.Items.Add(mnuExtract)
+
+        Dim mnuExtractTo As New ToolStripMenuItem("Extract Selected To...")
+        AddHandler mnuExtractTo.Click, AddressOf MnuExtractSelectedTo_Click
+        menu.Items.Add(mnuExtractTo)
+
+        menu.Items.Add(New ToolStripSeparator())
+
+        Dim mnuPreview As New ToolStripMenuItem("Preview")
+        AddHandler mnuPreview.Click, AddressOf MnuPreview_Click
+        menu.Items.Add(mnuPreview)
+
+        AddHandler menu.Opening, Sub(s, e)
+                                     Dim hasSelection = dgvEntries.SelectedRows.Count > 0
+                                     Dim isFpkg = _reader IsNot Nothing AndAlso _reader.Header.IsFPKG
+                                     mnuExtract.Enabled = hasSelection AndAlso isFpkg
+                                     mnuExtractTo.Enabled = hasSelection AndAlso isFpkg
+                                     mnuPreview.Enabled = hasSelection AndAlso isFpkg
+                                     Dim count = dgvEntries.SelectedRows.Count
+                                     mnuExtract.Text = If(count > 1, $"Extract Selected ({count} files)", "Extract Selected")
+                                 End Sub
+
+        dgvEntries.ContextMenuStrip = menu
+    End Sub
+
+    Private Sub MnuExtractSelected_Click(sender As Object, e As EventArgs)
+        If _reader Is Nothing OrElse Not _reader.Header.IsFPKG Then
+            MessageBox.Show("Only FPKG files support extraction.", "Extract",
+                          MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Using fbd As New FolderBrowserDialog()
+            fbd.Description = "Select output folder for extracted files"
+            If fbd.ShowDialog() <> DialogResult.OK Then Return
+            ExtractSelectedEntries(fbd.SelectedPath)
+        End Using
+    End Sub
+
+    Private Sub MnuExtractSelectedTo_Click(sender As Object, e As EventArgs)
+        MnuExtractSelected_Click(sender, e)
+    End Sub
+
+    Private Sub ExtractSelectedEntries(outputDir As String)
+        Dim selectedEntries As New List(Of PKGEntry)
+
+        For Each row As DataGridViewRow In dgvEntries.SelectedRows
+            Dim idxStr = row.Cells("Index").Value?.ToString()
+            Dim idx As Integer
+            If Integer.TryParse(idxStr, idx) AndAlso
+               idx >= 0 AndAlso idx < _reader.EntryTable.Entries.Count Then
+                selectedEntries.Add(_reader.EntryTable.Entries(idx))
+            End If
+        Next
+
+        If selectedEntries.Count = 0 Then
+            MessageBox.Show("No entries selected.", "Extract", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        lblStatus.Text = $"Extracting {selectedEntries.Count} entries..."
+        progressBar.Visible = True
+        progressBar.Maximum = selectedEntries.Count
+        progressBar.Value = 0
+        Application.DoEvents()
+
+        Dim successCount = 0
+        Dim failCount = 0
+
+        For Each entry In selectedEntries
+            Dim fileName = If(String.IsNullOrEmpty(entry.FileName),
+                              $"entry_0x{entry.Id:X4}", entry.FileName)
+            For Each c In Path.GetInvalidFileNameChars()
+                fileName = fileName.Replace(c, "_"c)
+            Next
+            Dim outputPath = Path.Combine(outputDir, fileName)
+
+            Try
+                If _reader.ExtractEntry(entry, outputPath) Then
+                    successCount += 1
+                Else
+                    failCount += 1
+                End If
+            Catch
+                failCount += 1
+            End Try
+
+            progressBar.Value += 1
+            Application.DoEvents()
+        Next
+
+        progressBar.Visible = False
+        lblStatus.Text = $"Extracted {successCount}/{selectedEntries.Count} entries"
+
+        Dim msg = $"Extracted {successCount} entries to:{vbCrLf}{outputDir}"
+        If failCount > 0 Then msg &= $"{vbCrLf}{vbCrLf}{failCount} entries failed (encrypted or invalid)"
+        MessageBox.Show(msg, "Extraction Complete",
+                      MessageBoxButtons.OK,
+                      If(failCount > 0, MessageBoxIcon.Warning, MessageBoxIcon.Information))
+    End Sub
+
+    Private Sub MnuPreview_Click(sender As Object, e As EventArgs)
+        If _reader Is Nothing OrElse dgvEntries.SelectedRows.Count = 0 Then Return
+
+        Dim row = dgvEntries.SelectedRows(0)
+        Dim idxStr = row.Cells("Index").Value?.ToString()
+        Dim idx As Integer
+        If Not Integer.TryParse(idxStr, idx) Then Return
+        If idx < 0 OrElse idx >= _reader.EntryTable.Entries.Count Then Return
+
+        Dim entry = _reader.EntryTable.Entries(idx)
+
+        txtDetails.Clear()
+        AppendStyled($"Preview: {entry.FileName}" & vbCrLf, Color.Blue, True)
+        AppendStyled($"Entry ID: 0x{entry.Id:X4}  |  Size: {FormatSize(CLng(entry.DataSize))}  |  Offset: 0x{entry.DataOffset:X}" & vbCrLf, Color.Gray)
+        txtDetails.AppendText("─────────────────────────────────────────" & vbCrLf)
+
+        If entry.IsEncrypted Then
+            AppendStyled("This entry is encrypted and cannot be previewed." & vbCrLf, Color.Red, True)
+            Return
+        End If
+
+        Dim data As Byte()
+        Try
+            data = _reader.ReadEntryData(entry)
+        Catch ex As Exception
+            AppendStyled($"Error reading entry: {ex.Message}" & vbCrLf, Color.Red)
+            Return
+        End Try
+
+        If data Is Nothing OrElse data.Length = 0 Then
+            AppendStyled("Entry contains no data." & vbCrLf, Color.Gray)
+            Return
+        End If
+
+        ' Detect if content is text (no null bytes in first 512 bytes, except at very end)
+        Dim previewSize = Math.Min(data.Length, 4096)
+        Dim checkSize = Math.Min(data.Length, 512)
+        Dim isText = True
+        For i = 0 To checkSize - 1
+            Dim b = data(i)
+            If b = 0 AndAlso i < checkSize - 1 Then
+                isText = False
+                Exit For
+            End If
+            If b < 32 AndAlso b <> 10 AndAlso b <> 13 AndAlso b <> 9 AndAlso b <> 0 Then
+                isText = False
+                Exit For
+            End If
+        Next
+
+        If isText Then
+            AppendStyled("[Text Preview]" & vbCrLf & vbCrLf, Color.DarkGreen, True)
+            Dim text = System.Text.Encoding.UTF8.GetString(data, 0, previewSize)
+            txtDetails.AppendText(text)
+        Else
+            AppendStyled("[Hex Preview]" & vbCrLf & vbCrLf, Color.DarkGreen, True)
+            Dim hexSize = Math.Min(data.Length, 1024)
+            For offset = 0 To hexSize - 1 Step 16
+                Dim hexPart As New System.Text.StringBuilder()
+                Dim ascPart As New System.Text.StringBuilder()
+                For i = 0 To 15
+                    If offset + i < data.Length Then
+                        hexPart.Append(data(offset + i).ToString("X2"))
+                        hexPart.Append(" "c)
+                        Dim b = data(offset + i)
+                        ascPart.Append(If(b >= 32 AndAlso b < 127, ChrW(b), "."c))
+                    Else
+                        hexPart.Append("   ")
+                    End If
+                    If i = 7 Then hexPart.Append(" "c)
+                Next
+                txtDetails.AppendText($"{offset:X8}  {hexPart}  {ascPart}" & vbCrLf)
+            Next
+
+            If data.Length > 1024 Then
+                AppendStyled($"{vbCrLf}... ({FormatSize(data.Length)} total, showing first 1 KB)" & vbCrLf, Color.Gray)
+            End If
+        End If
+    End Sub
 
 End Class
