@@ -1,9 +1,56 @@
-Imports PS5_BACKPORK_KITCHEN.Architecture.Infrastructure.Adapters
+Imports System.IO
+Imports System.Text
+Imports System.Windows.Forms.Design.AxImporter
+Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Errors
 Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Models
 Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Results
-Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Errors
+Imports PS5_BACKPORK_KITCHEN.Architecture.Infrastructure.Adapters
 Imports PS5_BACKPORK_KITCHEN.Services
-Imports System.IO
+' ============================================================
+' PATCH PIPELINE CONTRACT — DO NOT REORDER WITHOUT REVIEW
+' ============================================================
+' This method implements the required PS5 ELF/SELF patch flow.
+' Each stage is intentional. Removing or reordering steps will
+' produce broken binaries.
+'
+' REQUIRED EXECUTION ORDER:
+'
+'   1. Detect SELF vs ELF
+'   2. If SELF → decrypt to ELF
+'   3. Validate ELF structure
+'   4. Check SDK version
+'   5. Patch ELF headers
+'   6. Optional libc.prx string patch (6xx compatibility)
+'   7. Re-sign ELF → SELF   *** REQUIRED ***
+'   8. Overwrite original only AFTER signing success
+'
+' IMPORTANT RULES:
+'
+' • Never return a patched file without re-signing
+' • libc.prx string patch MUST occur before signing
+' • Do not sign before patching
+' • Do not overwrite original before patch + sign succeed
+' • Do not remove SELF detection — many inputs are encrypted
+' • Do not move signing into Catch/Finally blocks
+'
+' SERVICE LAYER NOTES:
+'
+' • Avoid UI references here (Form1, controls, etc.)
+' • Feature flags should be passed via options when possible
+' • Logging is allowed — UI access is not
+'
+' TEST MATRIX (must pass before merge):
+'
+' □ SELF input → patched → signed → loads
+' □ ELF input → patched → signed → loads
+' □ Already patched → skipped
+' □ libc.prx + 6xx flag → string patch applied
+' □ Patch failure → original unchanged
+' □ Signing failure → original unchanged
+'
+' If changing this pipeline — run binary validation tests.
+'
+' ============================================================
 
 Namespace Architecture.Application.Services
     ''' <summary>
@@ -105,7 +152,56 @@ Namespace Architecture.Application.Services
                 Select Case status
 
                     Case PatchStatus.Patched
-        ' continue success flow
+                        ' ----------  Optional 6xx libc string patch ----------
+
+                        Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
+                        If expermental6xx Then
+
+                            Dim filename As String = IO.Path.GetFileName(filePath).ToLower()
+
+                            If filename = "libc.prx" Then
+                                _logger.LogInfo("Applying 6xx libc string patch")
+
+                                PatchPrxString(
+                filePath,
+                Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
+                Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B")
+            )
+
+                            End If
+
+                        End If
+
+                        ' ---------- STEP 3: Sign patched ELF back to SELF ----------
+
+                        _logger.LogInfo($"Signing patched file: {filePath}")
+
+                        Dim dir = IO.Path.GetDirectoryName(filePath)
+                        Dim baseName = IO.Path.GetFileNameWithoutExtension(filePath)
+                        Dim tempSelf = IO.Path.Combine(dir, baseName & "_tmp.self")
+
+                        Dim signOptions As New SigningService.SigningOptions()
+
+                        Dim signResult = SigningService.SignElf(
+                            filePath,
+                            tempSelf,
+                            SigningService.SigningType.FreeFakeSign,
+                            signOptions
+                        )
+
+                        If Not signResult.Success Then
+                            _logger.LogError($"Signing failed: {filePath}")
+                            Return Result(Of PatchResult).Fail(
+                                New PatchFailedError($"Signing failed")
+                            )
+                        End If
+
+                        IO.File.Copy(tempSelf, filePath, True)
+                        IO.File.Delete(tempSelf)
+
+                        _logger.LogInfo($"Signed OK → {filePath}")
+
+
 
                     Case PatchStatus.Skipped
                         Return Result(Of PatchResult).Fail(
@@ -118,6 +214,7 @@ Namespace Architecture.Application.Services
         )
 
                 End Select
+
 
                 Dim duration = DateTime.Now - startTime
 
