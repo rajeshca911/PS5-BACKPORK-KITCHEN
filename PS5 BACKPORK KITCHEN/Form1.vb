@@ -3,6 +3,8 @@ Imports System.Globalization
 Imports System.IO
 Imports System.Runtime
 Imports System.Text
+Imports PS5_BACKPORK_KITCHEN.Architecture.Application.Coordinators
+Imports PS5_BACKPORK_KITCHEN.Architecture.Application.Services
 
 Public Class Form1
 
@@ -100,7 +102,10 @@ Public Class Form1
             Dim progressReporter = New Progress(Of Architecture.Application.Coordinators.PatchProgress)(
                 Sub(p)
                     If p.CurrentFile IsNot Nothing Then
+                        'Dim line = $"✔ {Path.GetFileName(p.CurrentFile)} ({p.ProcessedFiles}/{p.TotalFiles})"
+
                         Logger.Log(rtbStatus, $"  {p.CurrentFile} ({p.ProcessedFiles}/{p.TotalFiles})", Color.Black)
+                        'fileStatusList.Add(line)
                     End If
                 End Sub)
 
@@ -122,6 +127,7 @@ Public Class Form1
             patchedcount = summary.PatchedCount
             skippedcount = summary.SkippedCount
 
+
             updatestatus("Patching completed.", 1)
 
             'copy libfolder to selectedfolder
@@ -139,13 +145,28 @@ Public Class Form1
             updatestatus("--- Patching process completed.---", 1)
             'SendToLogFile($"--- Patching process completed for folder: {selectedfolder} ---{Environment.NewLine}")
             sw.Stop()
+            Dim maxLines As Integer = 50
+            Dim totalLines = summary.StatusLines.Count
+            Logger.Log(rtbStatus, $"UI list count = {totalLines}", Color.Red)
+            Dim shownLines = summary.StatusLines.Take(maxLines)
+            Dim detailsBlock = String.Join(Environment.NewLine, shownLines)
+            If totalLines > maxLines Then
+                detailsBlock &= Environment.NewLine &
+                    $"… and {totalLines - maxLines} more files"
+            End If
 
-            Dim Rmsg As String = $"Patching completed successfully!" & Environment.NewLine &
-                            $"Total Files Patched: {patchedcount}" & Environment.NewLine &
-                            $"Total Files Skipped: {skippedcount}" & Environment.NewLine &
-                            $"Fake Libs picked from Folder: {fwMajor}" & Environment.NewLine &
-                            $"Fullpath[Fakelibs]: {fakelibfolder}" & Environment.NewLine &
-                            $"Duration: {sw.Elapsed.TotalSeconds:F2} seconds"
+            Dim Rmsg As String =
+    "✅ Patching completed!" & Environment.NewLine &
+    $"✔ Files patched : {patchedcount}" & Environment.NewLine &
+    $"⏭ Files skipped : {skippedcount}" & Environment.NewLine &
+    $"📦 Fake libs FW : {fwMajor}" & Environment.NewLine &
+    $"📁 Fake libs path : {fakelibfolder}" & Environment.NewLine &
+    $"⏱ Duration : {sw.Elapsed.TotalSeconds:F2} seconds" & Environment.NewLine &
+    Environment.NewLine &
+            "— File Results —" & Environment.NewLine &
+            detailsBlock
+
+
             ShowNotification(Rmsg, "PS5 BackPork Kitchen", "PS5 BackPork Kitchen")
             Logger.Log(rtbStatus, Rmsg, Color.Green)
             OpenFolder(selectedfolder)

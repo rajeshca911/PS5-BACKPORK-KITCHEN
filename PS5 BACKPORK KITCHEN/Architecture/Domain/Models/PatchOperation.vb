@@ -37,6 +37,8 @@ Namespace Architecture.Domain.Models
         Public Property PatchedSdk As Long
         Public Property BytesWritten As Long
         Public Property Duration As TimeSpan
+        Public Property StatusMessage As String
+
     End Class
 
     ''' <summary>

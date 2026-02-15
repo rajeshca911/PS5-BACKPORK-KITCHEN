@@ -1,9 +1,10 @@
-Imports PS5_BACKPORK_KITCHEN.Architecture.Application.Services
+Imports System.IO
 Imports PS5_BACKPORK_KITCHEN.Architecture.Application.Context
-Imports PS5_BACKPORK_KITCHEN.Architecture.Infrastructure.Adapters
-Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Results
-Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Models
+Imports PS5_BACKPORK_KITCHEN.Architecture.Application.Services
 Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Errors
+Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Models
+Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Results
+Imports PS5_BACKPORK_KITCHEN.Architecture.Infrastructure.Adapters
 
 Namespace Architecture.Application.Coordinators
     ''' <summary>
@@ -14,6 +15,7 @@ Namespace Architecture.Application.Coordinators
         Private ReadOnly _backupService As IBackupService
         Private ReadOnly _fileSystem As IFileSystem
         Private ReadOnly _logger As ILogger
+        'Public Shared fileStatusList As New List(Of String)
 
         Public Sub New(elfService As IElfPatchingService,
                       backupService As IBackupService,
@@ -98,6 +100,7 @@ Namespace Architecture.Application.Coordinators
                     })
 
                     ' Patch file
+
                     Dim patchResult = Await _elfService.PatchFileAsync(filePath, targetSdk, cancellationToken)
 
                     context.ProcessedFiles += 1
@@ -105,16 +108,20 @@ Namespace Architecture.Application.Coordinators
                     If patchResult.IsSuccess Then
                         context.PatchedCount += 1
                         summary.PatchedFiles.Add(patchResult.Value)
-                        _logger.LogInfo($"Patched: {filePath}")
+                        summary.StatusLines.Add($"Patched: {IO.Path.GetFileName(filePath)}")
+                        _logger.LogInfo($"✔ Patched: {filePath}")
 
                     ElseIf TypeOf patchResult.Error Is AlreadyPatchedError Then
                         context.SkippedCount += 1
                         summary.SkippedFiles.Add(filePath)
+                        summary.StatusLines.Add($"⏭ {Path.GetFileName(filePath)} — already at target SDK")
                         _logger.LogInfo($"Skipped (already patched): {filePath}")
 
                     Else
                         context.ErrorCount += 1
                         summary.FailedFiles.Add((filePath, patchResult.Error))
+                        summary.StatusLines.Add(
+        $"❌ {Path.GetFileName(filePath)} — {patchResult.Error.Message}")
                         _logger.LogError($"Failed: {filePath} - {patchResult.Error.Message}")
 
                         If Not options.ContinueOnError Then
@@ -180,5 +187,7 @@ Namespace Architecture.Application.Coordinators
         Public Property PatchedFiles As New List(Of PatchResult)
         Public Property SkippedFiles As New List(Of String)
         Public Property FailedFiles As New List(Of (String, DomainError))
+        Public Property StatusLines As New List(Of String)
+
     End Class
 End Namespace

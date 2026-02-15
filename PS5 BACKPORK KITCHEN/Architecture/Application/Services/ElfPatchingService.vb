@@ -6,6 +6,7 @@ Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Models
 Imports PS5_BACKPORK_KITCHEN.Architecture.Domain.Results
 Imports PS5_BACKPORK_KITCHEN.Architecture.Infrastructure.Adapters
 Imports PS5_BACKPORK_KITCHEN.Services
+Imports PS5_BACKPORK_KITCHEN.globalvariables
 ' ============================================================
 ' PATCH PIPELINE CONTRACT — DO NOT REORDER WITHOUT REVIEW
 ' ============================================================
@@ -59,7 +60,7 @@ Namespace Architecture.Application.Services
     ''' </summary>
     Public Class ElfPatchingService
         Implements IElfPatchingService
-
+        Public fileStatusList As New List(Of String)
         Private ReadOnly _fileSystem As IFileSystem
         Private ReadOnly _logger As ILogger
 
@@ -74,6 +75,7 @@ Namespace Architecture.Application.Services
             Dim startTime = DateTime.Now
 
             Try
+                Dim filename As String
                 cancellationToken.ThrowIfCancellationRequested()
 
                 ' Check file exists
@@ -100,6 +102,7 @@ Namespace Architecture.Application.Services
 
                     If Not ok Then
                         _logger.LogError($"Decrypt failed: {filePath}")
+
                         Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
                     End If
 
@@ -131,6 +134,7 @@ Namespace Architecture.Application.Services
                 _logger.LogInfo($"SDK check: current={currentSdk} target = {targetSdk}")
 
                 If currentSdk = targetSdk Then
+
                     _logger.LogInfo($"File already patched: {filePath}")
                     Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
                 End If
@@ -157,7 +161,7 @@ Namespace Architecture.Application.Services
                         Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
                         If expermental6xx Then
 
-                            Dim filename As String = IO.Path.GetFileName(filePath).ToLower()
+                            filename = IO.Path.GetFileName(filePath).ToLower()
 
                             If filename = "libc.prx" Then
                                 _logger.LogInfo("Applying 6xx libc string patch")
@@ -167,6 +171,8 @@ Namespace Architecture.Application.Services
                 Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
                 Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B")
             )
+
+
 
                             End If
 
@@ -191,6 +197,7 @@ Namespace Architecture.Application.Services
 
                         If Not signResult.Success Then
                             _logger.LogError($"Signing failed: {filePath}")
+
                             Return Result(Of PatchResult).Fail(
                                 New PatchFailedError($"Signing failed")
                             )
