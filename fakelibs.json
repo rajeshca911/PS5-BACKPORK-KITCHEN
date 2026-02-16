@@ -28,7 +28,7 @@
 			"id": "UFS2Tool",
 			"filename": "win-x64-selfcontained.zip",
 			"url": "aHR0cHM6Ly9naXRodWIuY29tL1N2ZW5HREsvVUZTMlRvb2wvcmVsZWFzZXMvZG93bmxvYWQvdjQuMC93aW4teDY0LXNlbGZjb250YWluZWQuemlw",
-			"enabled": true,
+			"enabled": false,
 			"isProtected": false,
 			"password": "",
 			"type": "utility",

@@ -3,6 +3,7 @@ Imports System.Net.Http
 Imports System.Runtime
 Imports System.Text
 Imports Newtonsoft.Json
+Imports PS5_BACKPORK_KITCHEN.Architecture.Application
 
 Public Class FakelibRoot
     Public Property meta As MetaInfo
@@ -83,6 +84,27 @@ Module flibs
     Private ReadOnly _jsonCacheDuration As TimeSpan = TimeSpan.FromMinutes(30)
 
     Public Async Function GetFakelibRootAsync() As Task(Of FakelibRoot)
+        Dim jsonText = String.Empty
+#If DEBUG Then
+        Dim jsonfile As String = "E:\Proj\PS5 BACKPORK KITCHEN\fakelibs.json"
+
+        ' Check if the file actually exists before trying to read it
+        If System.IO.File.Exists(jsonfile) Then
+
+            jsonText = System.IO.File.ReadAllText(jsonfile)
+
+            _cachedRoot = Newtonsoft.Json.JsonConvert.DeserializeObject(Of FakelibRoot)(jsonText)
+            _lastJsonFetch = DateTime.Now
+
+            Return _cachedRoot
+        Else
+
+            Debug.WriteLine("DEBUG ERROR: fakelibs.json not found at " & jsonfile)
+            MessageBox.Show("DEBUG ERROR: fakelibs.json not found at " & jsonfile, "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return Nothing
+        End If
+#End If
+
 
         If _cachedRoot IsNot Nothing AndAlso
            DateTime.Now - _lastJsonFetch < _jsonCacheDuration Then
@@ -90,7 +112,7 @@ Module flibs
         End If
 
         Using client As New HttpClient()
-            Dim jsonText = Await client.GetStringAsync(fakelibJsonUrl)
+            jsonText = Await client.GetStringAsync(fakelibJsonUrl)
             _cachedRoot = JsonConvert.DeserializeObject(Of FakelibRoot)(jsonText)
             _lastJsonFetch = DateTime.Now
         End Using
@@ -222,14 +244,29 @@ Module flibs
                            $"Extracting: {archive.filename}",
                            Color.Green)
                         Dim pwd As String = Base64Decode(archive.password)
+                        ' Decode password (will be "" if no password)
+                        pwd = If(archive.isProtected, Base64Decode(archive.password), "")
 
-                        If archive.isProtected Then
-                            ExtractArchiveWithPassword(
+                        ' Call the same method for everything
+                        ExtractArchive(
                             localPath,
                             AppContext.BaseDirectory,
                             pwd
                         )
-                        End If
+
+                        '                If archive.isProtected Then
+                        '                    ExtractArchiveWithPassword(
+                        '                    localPath,
+                        '                    AppContext.BaseDirectory,
+                        '                    pwd
+                        '                )
+                        '                Else
+                        '                    ' Extract WITHOUT Password
+                        '                    ExtractArchive(
+                        '    localPath,
+                        '    AppContext.BaseDirectory
+                        ')
+                        '                End If
                     Catch ex As Exception
                         extractOk = False
                         Logger.Log(Form1.rtbStatus,

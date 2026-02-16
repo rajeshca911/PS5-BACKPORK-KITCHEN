@@ -26,8 +26,8 @@ Module ziphandler
 
         Logger.Log(Form1.rtbStatus, "Extracting dependencies…")
 
-        ExtractArchiveWithPassword(zipPath, depsDir, zipPassword)
-
+        'ExtractArchiveWithPassword(zipPath, depsDir, zipPassword)
+        ExtractArchive(zipPath, depsDir, zipPassword)
         File.Delete(zipPath)
 
         Logger.Log(Form1.rtbStatus, "Setup completed successfully ✓", Color.Green)
@@ -64,36 +64,65 @@ Module ziphandler
         End Using
     End Function
 
-    'extract zip or rar with password
-    Public Sub ExtractArchiveWithPassword(
-        archivePath As String,
-        extractTo As String,
-        password As String
-    )
+    ''extract zip or rar with password
+    'Public Sub ExtractArchiveWithPassword(
+    '    archivePath As String,
+    '    extractTo As String,
+    '    password As String
+    ')
+    '    IO.Directory.CreateDirectory(extractTo)
+
+    '    Dim options As New SharpCompress.Readers.ReaderOptions() With {
+    '        .Password = password
+    '    }
+
+    '    ' Use ArchiveFactory to handle both .zip and .rar automatically
+    '    Using archive As SharpCompress.Archives.IArchive =
+    '        SharpCompress.Archives.ArchiveFactory.Open(archivePath, options)
+
+    '        For Each entry In archive.Entries
+    '            If Not entry.IsDirectory Then
+    '                entry.WriteToDirectory(
+    '                    extractTo,
+    '                    New SharpCompress.Common.ExtractionOptions With {
+    '                        .ExtractFullPath = True,
+    '                        .Overwrite = True
+    '                    }
+    '                )
+    '            End If
+    '        Next
+    '    End Using
+    'End Sub
+    ' Extract zip or rar with optional password
+    Public Sub ExtractArchive(
+    archivePath As String,
+    extractTo As String,
+    Optional password As String = ""
+)
         IO.Directory.CreateDirectory(extractTo)
 
+        ' If password is "", SharpCompress handles it as no password
         Dim options As New SharpCompress.Readers.ReaderOptions() With {
-            .Password = password
-        }
+        .Password = password
+    }
 
         ' Use ArchiveFactory to handle both .zip and .rar automatically
         Using archive As SharpCompress.Archives.IArchive =
-            SharpCompress.Archives.ArchiveFactory.Open(archivePath, options)
+        SharpCompress.Archives.ArchiveFactory.Open(archivePath, options)
 
             For Each entry In archive.Entries
                 If Not entry.IsDirectory Then
                     entry.WriteToDirectory(
-                        extractTo,
-                        New SharpCompress.Common.ExtractionOptions With {
-                            .ExtractFullPath = True,
-                            .Overwrite = True
-                        }
-                    )
+                    extractTo,
+                    New SharpCompress.Common.ExtractionOptions With {
+                        .ExtractFullPath = True,
+                        .Overwrite = True
+                    }
+                )
                 End If
             Next
         End Using
     End Sub
-
     Public Sub SaveOperationHistory(item As OperationHistoryItem)
 
         Dim reportsDir = Path.Combine(

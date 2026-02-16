@@ -2034,7 +2034,25 @@ Public Class Form1
     ' === UFS2 Image & PKG Manager Button Handlers ===
 
     Private Sub btnUFS2Image_Click(sender As Object, e As EventArgs) Handles btnUFS2Image.Click
-        OpenUFS2Image()
+        ' OpenUFS2Image()
+        Dim exepath As String = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "win-x64-selfcontained", "UFS2Tool.GUI.exe")
+
+        ' Start if exists
+        If File.Exists(exepath) Then
+            Try
+                Dim startInfo As New ProcessStartInfo()
+                startInfo.FileName = exepath
+                ' Set the working directory to the folder containing the exe
+                startInfo.WorkingDirectory = Path.GetDirectoryName(exepath)
+
+                Process.Start(startInfo)
+            Catch ex As Exception
+                MessageBox.Show("Error starting UFS2Tool: " & ex.Message)
+            End Try
+        Else
+            MessageBox.Show("Executable not found: " & exepath)
+        End If
+
     End Sub
 
     Private Sub btnPkgManager_Click(sender As Object, e As EventArgs) Handles btnPkgManager.Click
