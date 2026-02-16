@@ -1,68 +1,78 @@
 {
-  "meta": {
-    "updated": "2026-01-23",
-    "version": "1.0.0"
-  },
-  "archives": [
-    {
-      "id": "SelfUtil",
-      "filename": "SelfUtil.rar",
-      "url": "aHR0cHM6Ly9naXRodWIuY29tL3JhamVzaGNhOTExL0NBUkEvcmVsZWFzZXMvZG93bmxvYWQvMS4wLjAvU2VsZlV0aWwucmFy",	
-	  "enabled": false,
-      "isProtected": true,
-      "password": "Q0FSQQ==",
-      "type": "utility",
-      "description": "Self Util by CybiK autodownload Alternative"
-    },
-    {
-      "id": "libszip",
-      "filename": "libs.rar",	
-      "url": "aHR0cHM6Ly9naXRodWIuY29tL3JhamVzaGNhOTExL0NBUkEvcmVsZWFzZXMvZG93bmxvYWQvMS4wLjAvbGlicy5yYXI=",
-	  "enabled": true,
-      "isProtected": true,
-      "password": "Q0FSQQ==",
-      "type": "libs",
-      "description": "Core dependencies"
-    }
-  ],
-  "payloads": {
-    "fakelibs": [
-      {
-        "fw_version": "7",
-        "base_url": "aHR0cHM6Ly9oa2txeHZkaWtjbGpsZG96cGVmYy5zdXBhYmFzZS5jby9zdG9yYWdlL3YxL29iamVjdC9wdWJsaWMvUFJY",
-        "is_recommended": true,
-        "files": [
-          "libSceAgc",
-          "libSceAgcDriver",
-          "libSceNpAuth",
-          "libSceNpAuthAuthorizedAppDialog",
-          "libSceSaveData.native",
-          "ps5-backpork.elf"
-        ]
-      },
-      {
-        "fw_version": "6",
-        "base_url": "aHR0cHM6Ly9oa2txeHZkaWtjbGpsZG96cGVmYy5zdXBhYmFzZS5jby9zdG9yYWdlL3YxL29iamVjdC9wdWJsaWMvUFJYLzZYWA==",
-        "is_recommended": false,
-        "files": [
-          "libSceAgc",
-          "libSceAgcDriver",
-          "libSceFiber"
-        ]
-      }
-    ],
-    "standalone": [
-      {
-        "name": "SelfUtil",
-		"enabled": true,
-        "base_url": "aHR0cHM6Ly9naXRodWIuY29tL0N5QjFLL1NlbGZVdGlsLVBhdGNoZWQvcmVsZWFzZXMvZG93bmxvYWQvMS4y",
-        "files": [
-          "selfutil_patched.exe",
-          "msvcp140d.dll",
-          "ucrtbased.dll",
-          "vcruntime140d.dll"
-        ]
-      }
-    ]
-  }
+	"meta": {
+		"updated": "2026-01-23",
+		"version": "1.0.0"
+	},
+	"archives": [
+		{
+			"id": "SelfUtil",
+			"filename": "SelfUtil.rar",
+			"url": "aHR0cHM6Ly9naXRodWIuY29tL3JhamVzaGNhOTExL0NBUkEvcmVsZWFzZXMvZG93bmxvYWQvMS4wLjAvU2VsZlV0aWwucmFy",
+			"enabled": false,
+			"isProtected": true,
+			"password": "Q0FSQQ==",
+			"type": "utility",
+			"description": "Self Util by CybiK autodownload Alternative"
+		},
+		{
+			"id": "libszip",
+			"filename": "libs.rar",
+			"url": "aHR0cHM6Ly9naXRodWIuY29tL3JhamVzaGNhOTExL0NBUkEvcmVsZWFzZXMvZG93bmxvYWQvMS4wLjAvbGlicy5yYXI=",
+			"enabled": true,
+			"isProtected": true,
+			"password": "Q0FSQQ==",
+			"type": "libs",
+			"description": "Core dependencies"
+		},
+		{
+			"id": "UFS2Tool",
+			"filename": "win-x64-selfcontained.zip",
+			"url": "aHR0cHM6Ly9naXRodWIuY29tL1N2ZW5HREsvVUZTMlRvb2wvcmVsZWFzZXMvZG93bmxvYWQvdjQuMC93aW4teDY0LXNlbGZjb250YWluZWQuemlw",
+			"enabled": true,
+			"isProtected": false,
+			"password": "",
+			"type": "utility",
+			"description": "Optional - UFS2Tool v4.0"
+		}
+	],
+	"payloads": {
+		"fakelibs": [
+			{
+				"fw_version": "7",
+				"base_url": "aHR0cHM6Ly9oa2txeHZkaWtjbGpsZG96cGVmYy5zdXBhYmFzZS5jby9zdG9yYWdlL3YxL29iamVjdC9wdWJsaWMvUFJY",
+				"is_recommended": true,
+				"files": [
+					"libSceAgc",
+					"libSceAgcDriver",
+					"libSceNpAuth",
+					"libSceNpAuthAuthorizedAppDialog",
+					"libSceSaveData.native",
+					"ps5-backpork.elf"
+				]
+			},
+			{
+				"fw_version": "6",
+				"base_url": "aHR0cHM6Ly9oa2txeHZkaWtjbGpsZG96cGVmYy5zdXBhYmFzZS5jby9zdG9yYWdlL3YxL29iamVjdC9wdWJsaWMvUFJYLzZYWA==",
+				"is_recommended": false,
+				"files": [
+					"libSceAgc",
+					"libSceAgcDriver",
+					"libSceFiber"
+				]
+			}
+		],
+		"standalone": [
+			{
+				"name": "SelfUtil",
+				"enabled": true,
+				"base_url": "aHR0cHM6Ly9naXRodWIuY29tL0N5QjFLL1NlbGZVdGlsLVBhdGNoZWQvcmVsZWFzZXMvZG93bmxvYWQvMS4y",
+				"files": [
+					"selfutil_patched.exe",
+					"msvcp140d.dll",
+					"ucrtbased.dll",
+					"vcruntime140d.dll"
+				]
+			}
+		]
+	}
 }
