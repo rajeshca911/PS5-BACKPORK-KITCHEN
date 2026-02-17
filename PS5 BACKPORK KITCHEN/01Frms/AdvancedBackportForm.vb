@@ -235,8 +235,21 @@ Public Class AdvancedBackportForm
     ''' </summary>
     Private Sub TryAutoDetectFirmware(gameFolder As String)
         Try
+            ' Check the standard location first
             Dim sfoPath As String = Path.Combine(gameFolder, "sce_sys", "param.sfo")
-            If Not File.Exists(sfoPath) Then Return
+
+            ' Fall back to a recursive search if not found at the standard path
+            If Not File.Exists(sfoPath) Then
+                Dim hits() As String = Directory.GetFiles(gameFolder, "param.sfo",
+                                                          SearchOption.AllDirectories)
+                If hits.Length = 0 Then
+                    AppendLog("[AUTO] param.sfo not found in selected folder.", Color.Yellow)
+                    Return
+                End If
+                sfoPath = hits(0)
+            End If
+
+            AppendLog($"[AUTO] Reading param.sfo: {sfoPath}", Color.Gray)
 
             Dim meta As New PKGMetadata()
             meta.LoadFromBytes(File.ReadAllBytes(sfoPath))
@@ -309,17 +322,33 @@ Public Class AdvancedBackportForm
         Dim pipelineErr As Action(Of String) = Sub(line) SafeAppendLog(line, Color.Orange)
         Dim pipelineCt As CancellationToken = _cts.Token
 
-        Dim exitCode As Integer = Await PythonRunner.RunAsync(
-            scriptPath, pipelineArgs, pipelineOut, pipelineErr, pipelineCt)
-
-        If exitCode = 0 Then
-            AppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
-        Else
-            AppendLog($"[ABP] Pipeline exited with code {exitCode}.", Color.Red)
-        End If
+        ' Delegate the await to a Function returning Task to avoid VB.NET Conversions.ToInteger
+        ' in the async state machine when awaiting Task(Of Integer) inside Async Sub.
+        Await RunPipelineHelperAsync(scriptPath, pipelineArgs, pipelineOut, pipelineErr, pipelineCt)
 
         SetRunningState(False)
     End Sub
+
+    ''' <summary>
+    ''' Wraps PythonRunner.RunAsync so BtnRun_Click (Async Sub) awaits a plain Task,
+    ''' avoiding the VB.NET Option-Strict-Off implicit Conversions.ToInteger bug.
+    ''' </summary>
+    Private Async Function RunPipelineHelperAsync(
+        scriptPath As String,
+        args As String,
+        onOutput As Action(Of String),
+        onError As Action(Of String),
+        ct As CancellationToken
+    ) As Task
+        Dim runTask As Task(Of Integer) = PythonRunner.RunAsync(scriptPath, args, onOutput, onError, ct)
+        Await runTask
+        Dim exitCode As Integer = runTask.Result
+        If exitCode = 0 Then
+            SafeAppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
+        Else
+            SafeAppendLog($"[ABP] Pipeline exited with code {exitCode}.", Color.Red)
+        End If
+    End Function
 
     Private Sub BtnStop_Click(sender As Object, e As EventArgs) Handles btnStop.Click
         _cts?.Cancel()
