@@ -55,6 +55,7 @@ Partial Class Form1
         btnShowStatistics = New Button()
         btnUFS2Image = New Button()
         btnPkgManager = New Button()
+        btnAdvancedBackport = New Button()
         lblDragDropHint = New ReaLTaiizor.Controls.MoonLabel()
         chklibcpatch = New ReaLTaiizor.Controls.FoxCheckBoxEdit()
         FlowLayoutPanel1 = New FlowLayoutPanel()
@@ -524,7 +525,20 @@ Partial Class Form1
         btnPkgManager.TabIndex = 7
         btnPkgManager.Text = "btnPkgManager"
         btnPkgManager.UseVisualStyleBackColor = False
-        ' 
+        '
+        ' btnAdvancedBackport
+        '
+        btnAdvancedBackport.BackColor = Color.FromArgb(CByte(200), CByte(160), CByte(255))
+        btnAdvancedBackport.FlatStyle = FlatStyle.System
+        btnAdvancedBackport.Font = New Font("Segoe UI Semibold", 9F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        btnAdvancedBackport.ForeColor = Color.Black
+        btnAdvancedBackport.Location = New Point(176, 99)
+        btnAdvancedBackport.Name = "btnAdvancedBackport"
+        btnAdvancedBackport.Size = New Size(167, 26)
+        btnAdvancedBackport.TabIndex = 8
+        btnAdvancedBackport.Text = "btnAdvancedBackport"
+        btnAdvancedBackport.UseVisualStyleBackColor = False
+        '
         ' lblDragDropHint
         ' 
         lblDragDropHint.AutoSize = True
@@ -563,6 +577,7 @@ Partial Class Form1
         FlowLayoutPanel1.Controls.Add(btnElfInspector)
         FlowLayoutPanel1.Controls.Add(btnAdvancedOps)
         FlowLayoutPanel1.Controls.Add(btnPkgManager)
+        FlowLayoutPanel1.Controls.Add(btnAdvancedBackport)
         FlowLayoutPanel1.Location = New Point(26, 330)
         FlowLayoutPanel1.Name = "FlowLayoutPanel1"
         FlowLayoutPanel1.Size = New Size(353, 135)
@@ -640,6 +655,7 @@ Partial Class Form1
     Friend WithEvents lblfw As Label
     Friend WithEvents btnUFS2Image As Button
     Friend WithEvents btnPkgManager As Button
+    Friend WithEvents btnAdvancedBackport As Button
     Friend WithEvents FlowLayoutPanel1 As FlowLayoutPanel
 
 End Class
