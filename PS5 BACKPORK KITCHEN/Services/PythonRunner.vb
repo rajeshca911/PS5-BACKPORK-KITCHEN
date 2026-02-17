@@ -1,10 +1,11 @@
 Imports System.Diagnostics
 Imports System.IO
 Imports System.Threading
+Imports System.Threading.Tasks
 
 ''' <summary>
 ''' Launches Python scripts and streams their output line-by-line.
-''' Searches for a Python interpreter in: PATH, venv, bundled python/ folder.
+''' Searches for a Python interpreter in: bundled python/ folder, .venv, PATH.
 ''' </summary>
 Public Class PythonRunner
 
@@ -17,9 +18,9 @@ Public Class PythonRunner
     ''' Search order: bundled python/ sub-folder, virtual-env .venv, PATH.
     ''' </summary>
     Public Shared Function FindPython() As String
-        Dim appDir = AppDomain.CurrentDomain.BaseDirectory
+        Dim appDir As String = AppDomain.CurrentDomain.BaseDirectory
 
-        ' 1. Bundled python (shipped alongside the app)
+        ' 1. Bundled interpreter shipped alongside the app
         Dim bundled As String = Path.Combine(appDir, "python", "python.exe")
         If File.Exists(bundled) Then Return bundled
 
@@ -27,21 +28,30 @@ Public Class PythonRunner
         Dim venv As String = Path.Combine(appDir, ".venv", "Scripts", "python.exe")
         If File.Exists(venv) Then Return venv
 
-        ' 3. System PATH
-        For Each candidate In {"python", "python3", "py"}
+        ' 3. System PATH — try common executable names
+        For Each candidate As String In New String() {"python", "python3", "py"}
             Try
-                Dim info As New ProcessStartInfo(candidate, "--version") With {
+                Dim info As New ProcessStartInfo() With {
+                    .FileName = candidate,
+                    .Arguments = "--version",
                     .UseShellExecute = False,
                     .RedirectStandardOutput = True,
                     .RedirectStandardError = True,
                     .CreateNoWindow = True
                 }
-                Using proc = Process.Start(info)
+                Dim proc As Process = Process.Start(info)
+                If proc IsNot Nothing Then
                     proc.WaitForExit(3000)
-                    If proc.ExitCode = 0 Then Return candidate
-                End Using
+                    Dim code As Integer = 0
+                    Try
+                        code = proc.ExitCode
+                    Catch
+                    End Try
+                    proc.Dispose()
+                    If code = 0 Then Return candidate
+                End If
             Catch
-                ' Not found in PATH — try next
+                ' not found — try next candidate
             End Try
         Next
 
@@ -49,40 +59,56 @@ Public Class PythonRunner
     End Function
 
     ' ---------------------------------------------------------------------------
-    ' Async execution
+    ' Async execution (without cancellation)
     ' ---------------------------------------------------------------------------
 
     ''' <summary>
     ''' Run a Python script and stream stdout/stderr line-by-line.
     ''' </summary>
-    ''' <param name="scriptPath">Absolute path to the .py script.</param>
-    ''' <param name="args">Command-line arguments string.</param>
-    ''' <param name="onOutput">Callback invoked for each stdout line.</param>
-    ''' <param name="onError">Callback invoked for each stderr line.</param>
-    ''' <param name="ct">CancellationToken to abort the process.</param>
-    ''' <returns>Process exit code (0 = success).</returns>
+    Public Shared Function RunAsync(
+        scriptPath As String,
+        args As String,
+        onOutput As Action(Of String),
+        onError As Action(Of String)
+    ) As Task(Of Integer)
+        Return RunAsync(scriptPath, args, onOutput, onError, CancellationToken.None)
+    End Function
+
+    ' ---------------------------------------------------------------------------
+    ' Async execution (with cancellation)
+    ' ---------------------------------------------------------------------------
+
+    ''' <summary>
+    ''' Run a Python script and stream stdout/stderr line-by-line, with cancellation support.
+    ''' </summary>
     Public Shared Async Function RunAsync(
         scriptPath As String,
         args As String,
         onOutput As Action(Of String),
         onError As Action(Of String),
-        Optional ct As CancellationToken = Nothing
+        ct As CancellationToken
     ) As Task(Of Integer)
 
-        Dim python = FindPython()
+        Dim python As String = FindPython()
         If python Is Nothing Then
-            onError?.Invoke("[ERROR] Python interpreter not found. Install Python 3.9+ or place python.exe in the 'python' sub-folder.")
+            If onError IsNot Nothing Then
+                onError.Invoke("[ERROR] Python interpreter not found. Install Python 3.9+ or place python.exe in the 'python' sub-folder next to the app.")
+            End If
             Return -1
         End If
 
         If Not File.Exists(scriptPath) Then
-            onError?.Invoke($"[ERROR] Script not found: {scriptPath}")
+            If onError IsNot Nothing Then
+                onError.Invoke("[ERROR] Script not found: " & scriptPath)
+            End If
             Return -1
         End If
 
-        Dim workDir = Path.GetDirectoryName(scriptPath)
+        Dim workDir As String = Path.GetDirectoryName(scriptPath)
 
-        Dim psi As New ProcessStartInfo(python, $"""{scriptPath}"" {args}") With {
+        Dim psi As New ProcessStartInfo() With {
+            .FileName = python,
+            .Arguments = """" & scriptPath & """ " & args,
             .WorkingDirectory = workDir,
             .UseShellExecute = False,
             .RedirectStandardOutput = True,
@@ -92,40 +118,51 @@ Public Class PythonRunner
             .StandardErrorEncoding = Text.Encoding.UTF8
         }
 
-        Using proc As New Process() With {.StartInfo = psi, .EnableRaisingEvents = True}
-            proc.Start()
+        Dim proc As New Process() With {.StartInfo = psi, .EnableRaisingEvents = True}
+        proc.Start()
 
-            ' Read stdout and stderr concurrently
-            Dim stdoutTask = ReadStreamAsync(proc.StandardOutput, onOutput, ct)
-            Dim stderrTask = ReadStreamAsync(proc.StandardError, onError, ct)
+        ' Cancel: kill process when token is signalled
+        Dim ctReg As CancellationTokenRegistration = Nothing
+        If ct <> CancellationToken.None Then
+            ctReg = ct.Register(Sub()
+                                    Try
+                                        If Not proc.HasExited Then proc.Kill()
+                                    Catch
+                                    End Try
+                                End Sub)
+        End If
 
-            ' Handle cancellation
-            If ct <> Nothing Then
-                ct.Register(Sub()
-                                Try
-                                    If Not proc.HasExited Then proc.Kill(entireProcessTree:=True)
-                                Catch
-                                End Try
-                            End Sub)
-            End If
+        Dim stdoutTask As Task = ReadStreamAsync(proc.StandardOutput, onOutput, ct)
+        Dim stderrTask As Task = ReadStreamAsync(proc.StandardError, onError, ct)
 
-            Await Task.WhenAll(stdoutTask, stderrTask)
-            proc.WaitForExit()
-            Return proc.ExitCode
-        End Using
+        Await Task.WhenAll(stdoutTask, stderrTask)
+        proc.WaitForExit()
+
+        Dim exitCode As Integer = 0
+        Try
+            exitCode = proc.ExitCode
+        Catch
+        End Try
+
+        ctReg.Dispose()
+        proc.Dispose()
+        Return exitCode
     End Function
 
+    ' ---------------------------------------------------------------------------
+    ' Stream reader
+    ' ---------------------------------------------------------------------------
+
     Private Shared Async Function ReadStreamAsync(
-        reader As IO.StreamReader,
+        reader As StreamReader,
         callback As Action(Of String),
         ct As CancellationToken
     ) As Task
-        Dim line As String
         Do
-            If ct <> Nothing AndAlso ct.IsCancellationRequested Then Exit Do
-            line = Await reader.ReadLineAsync()
+            If ct <> CancellationToken.None AndAlso ct.IsCancellationRequested Then Exit Do
+            Dim line As String = Await reader.ReadLineAsync()
             If line Is Nothing Then Exit Do
-            callback?.Invoke(line)
+            If callback IsNot Nothing Then callback.Invoke(line)
         Loop
     End Function
 

@@ -224,8 +224,53 @@ Public Class AdvancedBackportForm
         }
             If dlg.ShowDialog() = DialogResult.OK Then
                 txtGameFolder.Text = dlg.SelectedPath
+                TryAutoDetectFirmware(dlg.SelectedPath)
             End If
         End Using
+    End Sub
+
+    ''' <summary>
+    ''' Reads sce_sys/param.sfo from the game folder and auto-sets cmbFwCurrent
+    ''' from the SYSTEM_VER field (minimum firmware required by the game).
+    ''' </summary>
+    Private Sub TryAutoDetectFirmware(gameFolder As String)
+        Try
+            Dim sfoPath As String = Path.Combine(gameFolder, "sce_sys", "param.sfo")
+            If Not File.Exists(sfoPath) Then Return
+
+            Dim meta As New PKGMetadata()
+            meta.LoadFromBytes(File.ReadAllBytes(sfoPath))
+
+            If String.IsNullOrEmpty(meta.MinFirmware) Then Return
+
+            ' MinFirmware is in the form "X.XX" — find the closest entry in the combo
+            Dim detected As String = meta.MinFirmware
+            AppendLog($"[AUTO] param.sfo detected MinFirmware: {detected}", Color.Lime)
+
+            ' Try exact match first, then major.minor match
+            If cmbFwCurrent.Items.Contains(detected) Then
+                cmbFwCurrent.SelectedItem = detected
+            Else
+                ' Find the closest version >= detected
+                Dim detectedVal As Double = 0
+                Double.TryParse(detected, Globalization.NumberStyles.Any,
+                                Globalization.CultureInfo.InvariantCulture, detectedVal)
+                For Each item As Object In cmbFwCurrent.Items
+                    Dim v As Double = 0
+                    If Double.TryParse(item.ToString(), Globalization.NumberStyles.Any,
+                                      Globalization.CultureInfo.InvariantCulture, v) Then
+                        If Math.Abs(v - detectedVal) < 0.1 Then
+                            cmbFwCurrent.SelectedItem = item
+                            Exit For
+                        End If
+                    End If
+                Next
+            End If
+
+            AppendLog($"[AUTO] Current FW set to: {cmbFwCurrent.Text}", Color.Lime)
+        Catch ex As Exception
+            AppendLog($"[AUTO] Could not read param.sfo: {ex.Message}", Color.Yellow)
+        End Try
     End Sub
 
     Private Async Sub BtnRun_Click(sender As Object, e As EventArgs) Handles btnRun.Click
@@ -259,12 +304,13 @@ Public Class AdvancedBackportForm
         If chkResign.Checked Then argsBuilder.Append("--resign ")
         argsBuilder.Append("--no-color")
 
+        Dim pipelineArgs As String = argsBuilder.ToString()
+        Dim pipelineOut As Action(Of String) = Sub(line) SafeAppendLog(line)
+        Dim pipelineErr As Action(Of String) = Sub(line) SafeAppendLog(line, Color.Orange)
+        Dim pipelineCt As CancellationToken = _cts.Token
+
         Dim exitCode As Integer = Await PythonRunner.RunAsync(
-            scriptPath,
-            argsBuilder.ToString(),
-            onOutput:=Sub(line) SafeAppendLog(line),
-            onError:=Sub(line) SafeAppendLog(line, Color.Orange),
-            ct:=_cts.Token)
+            scriptPath, pipelineArgs, pipelineOut, pipelineErr, pipelineCt)
 
         If exitCode = 0 Then
             AppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
