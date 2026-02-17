@@ -3,6 +3,7 @@ Imports System.IO
 Imports System.Net
 Imports System.Net.Sockets
 Imports System.Text
+Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports System.Windows.Forms
 
@@ -233,57 +234,114 @@ Public Class AdvancedBackportForm
     ''' Reads sce_sys/param.sfo from the game folder and auto-sets cmbFwCurrent
     ''' from the SYSTEM_VER field (minimum firmware required by the game).
     ''' </summary>
+    ''' <summary>
+    ''' Tries to detect the minimum required firmware from the game folder.
+    ''' Supports both param.sfo (binary) and param.json (PS5 JSON format).
+    ''' Searches recursively under the selected folder.
+    ''' </summary>
     Private Sub TryAutoDetectFirmware(gameFolder As String)
         Try
-            ' Check the standard location first
-            Dim sfoPath As String = Path.Combine(gameFolder, "sce_sys", "param.sfo")
+            Dim detected As String = Nothing
 
-            ' Fall back to a recursive search if not found at the standard path
+            ' --- 1. Try param.sfo (binary, standard PS4/PS5 PKG format) ---
+            Dim sfoPath As String = Path.Combine(gameFolder, "sce_sys", "param.sfo")
             If Not File.Exists(sfoPath) Then
                 Dim hits() As String = Directory.GetFiles(gameFolder, "param.sfo",
                                                           SearchOption.AllDirectories)
-                If hits.Length = 0 Then
-                    AppendLog("[AUTO] param.sfo not found in selected folder.", Color.Yellow)
-                    Return
+                If hits.Length > 0 Then sfoPath = hits(0) Else sfoPath = Nothing
+            End If
+
+            If sfoPath IsNot Nothing Then
+                AppendLog($"[AUTO] Reading param.sfo: {sfoPath}", Color.Gray)
+                Dim meta As New PKGMetadata()
+                meta.LoadFromBytes(File.ReadAllBytes(sfoPath))
+                If Not String.IsNullOrEmpty(meta.MinFirmware) Then
+                    detected = meta.MinFirmware
                 End If
-                sfoPath = hits(0)
             End If
 
-            AppendLog($"[AUTO] Reading param.sfo: {sfoPath}", Color.Gray)
+            ' --- 2. Fall back to param.json (PS5 JSON publisher format) ---
+            If detected Is Nothing Then
+                Dim jsonPath As String = Path.Combine(gameFolder, "sce_sys", "param.json")
+                If Not File.Exists(jsonPath) Then
+                    Dim hits() As String = Directory.GetFiles(gameFolder, "param.json",
+                                                              SearchOption.AllDirectories)
+                    If hits.Length > 0 Then jsonPath = hits(0) Else jsonPath = Nothing
+                End If
 
-            Dim meta As New PKGMetadata()
-            meta.LoadFromBytes(File.ReadAllBytes(sfoPath))
-
-            If String.IsNullOrEmpty(meta.MinFirmware) Then Return
-
-            ' MinFirmware is in the form "X.XX" — find the closest entry in the combo
-            Dim detected As String = meta.MinFirmware
-            AppendLog($"[AUTO] param.sfo detected MinFirmware: {detected}", Color.Lime)
-
-            ' Try exact match first, then major.minor match
-            If cmbFwCurrent.Items.Contains(detected) Then
-                cmbFwCurrent.SelectedItem = detected
-            Else
-                ' Find the closest version >= detected
-                Dim detectedVal As Double = 0
-                Double.TryParse(detected, Globalization.NumberStyles.Any,
-                                Globalization.CultureInfo.InvariantCulture, detectedVal)
-                For Each item As Object In cmbFwCurrent.Items
-                    Dim v As Double = 0
-                    If Double.TryParse(item.ToString(), Globalization.NumberStyles.Any,
-                                      Globalization.CultureInfo.InvariantCulture, v) Then
-                        If Math.Abs(v - detectedVal) < 0.1 Then
-                            cmbFwCurrent.SelectedItem = item
-                            Exit For
-                        End If
-                    End If
-                Next
+                If jsonPath IsNot Nothing Then
+                    AppendLog($"[AUTO] Reading param.json: {jsonPath}", Color.Gray)
+                    detected = ParseFwFromParamJson(File.ReadAllText(jsonPath))
+                End If
             End If
 
+            ' --- 3. Report result ---
+            If detected Is Nothing Then
+                AppendLog("[AUTO] No param.sfo / param.json found in selected folder.", Color.Yellow)
+                Return
+            End If
+
+            AppendLog($"[AUTO] Detected minimum firmware: {detected}", Color.Lime)
+            SelectClosestFwVersion(detected)
             AppendLog($"[AUTO] Current FW set to: {cmbFwCurrent.Text}", Color.Lime)
+
         Catch ex As Exception
-            AppendLog($"[AUTO] Could not read param.sfo: {ex.Message}", Color.Yellow)
+            AppendLog($"[AUTO] Firmware detection error: {ex.Message}", Color.Yellow)
         End Try
+    End Sub
+
+    ''' <summary>
+    ''' Parses "requiredSystemSoftwareVersion" from a PS5 param.json string.
+    ''' The value is a 64-bit hex like "0x0500000000000000": high byte = major, next = minor.
+    ''' </summary>
+    Private Shared Function ParseFwFromParamJson(json As String) As String
+        ' Look for the requiredSystemSoftwareVersion field (hex string value)
+        Dim m As Match = Regex.Match(json,
+            """requiredSystemSoftwareVersion""\s*:\s*""(0x[0-9A-Fa-f]+)""",
+            RegexOptions.IgnoreCase)
+        If Not m.Success Then Return Nothing
+
+        Dim hexStr As String = m.Groups(1).Value  ' e.g. "0x0500000000000000"
+        Dim raw As ULong = 0
+        If Not ULong.TryParse(hexStr.Substring(2),
+                              Globalization.NumberStyles.HexNumber,
+                              Globalization.CultureInfo.InvariantCulture, raw) Then
+            Return Nothing
+        End If
+
+        Dim major As Integer = CInt((raw >> 56) And &HFFUL)
+        Dim minor As Integer = CInt((raw >> 48) And &HFFUL)
+        Return $"{major}.{minor:D2}"
+    End Function
+
+    ''' <summary>
+    ''' Selects the closest firmware version in cmbFwCurrent for the given "X.XX" string.
+    ''' Tries exact match first, then nearest numeric value.
+    ''' </summary>
+    Private Sub SelectClosestFwVersion(detected As String)
+        If cmbFwCurrent.Items.Contains(detected) Then
+            cmbFwCurrent.SelectedItem = detected
+            Return
+        End If
+
+        Dim detectedVal As Double = 0
+        Double.TryParse(detected, Globalization.NumberStyles.Any,
+                        Globalization.CultureInfo.InvariantCulture, detectedVal)
+
+        Dim bestItem As Object = Nothing
+        Dim bestDist As Double = Double.MaxValue
+        For Each item As Object In cmbFwCurrent.Items
+            Dim v As Double = 0
+            If Double.TryParse(item.ToString(), Globalization.NumberStyles.Any,
+                               Globalization.CultureInfo.InvariantCulture, v) Then
+                Dim dist = Math.Abs(v - detectedVal)
+                If dist < bestDist Then
+                    bestDist = dist
+                    bestItem = item
+                End If
+            End If
+        Next
+        If bestItem IsNot Nothing Then cmbFwCurrent.SelectedItem = bestItem
     End Sub
 
     Private Async Sub BtnRun_Click(sender As Object, e As EventArgs) Handles btnRun.Click
