@@ -83,26 +83,34 @@ Module flibs
     Private _lastJsonFetch As DateTime = DateTime.MinValue
     Private ReadOnly _jsonCacheDuration As TimeSpan = TimeSpan.FromMinutes(30)
 
+    ''' <summary>
+    ''' Search for fakelibs.json by walking up from the running exe location.
+    ''' Handles both debug (bin\Debug\net8.0-windows\) and installed layouts.
+    ''' </summary>
+    Private Function FindFakelibsJson() As String
+        Dim dir As String = AppDomain.CurrentDomain.BaseDirectory
+        For i = 0 To 5
+            Dim candidate As String = System.IO.Path.Combine(dir, "fakelibs.json")
+            If System.IO.File.Exists(candidate) Then Return candidate
+            Dim parent As String = System.IO.Path.GetDirectoryName(dir)
+            If parent Is Nothing OrElse parent = dir Then Exit For
+            dir = parent
+        Next
+        Return Nothing
+    End Function
+
     Public Async Function GetFakelibRootAsync() As Task(Of FakelibRoot)
         Dim jsonText = String.Empty
 #If DEBUG Then
-        Dim jsonfile As String = "E:\Proj\PS5 BACKPORK KITCHEN\fakelibs.json"
-
-        ' Check if the file actually exists before trying to read it
-        If System.IO.File.Exists(jsonfile) Then
-
+        ' Search for fakelibs.json starting from app dir, going up to repo root
+        Dim jsonfile As String = FindFakelibsJson()
+        If jsonfile IsNot Nothing Then
             jsonText = System.IO.File.ReadAllText(jsonfile)
-
             _cachedRoot = Newtonsoft.Json.JsonConvert.DeserializeObject(Of FakelibRoot)(jsonText)
             _lastJsonFetch = DateTime.Now
-
             Return _cachedRoot
-        Else
-
-            Debug.WriteLine("DEBUG ERROR: fakelibs.json not found at " & jsonfile)
-            MessageBox.Show("DEBUG ERROR: fakelibs.json not found at " & jsonfile, "File Not Found", MessageBoxButtons.OK, MessageBoxIcon.Error)
-            Return Nothing
         End If
+        ' If not found locally, fall through to download from GitHub
 #End If
 
 

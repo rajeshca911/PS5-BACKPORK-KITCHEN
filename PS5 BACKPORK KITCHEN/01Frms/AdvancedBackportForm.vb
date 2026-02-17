@@ -1,5 +1,7 @@
 Imports System.Drawing
 Imports System.IO
+Imports System.Net
+Imports System.Net.Sockets
 Imports System.Text
 Imports System.Threading
 Imports System.Windows.Forms
@@ -10,38 +12,36 @@ Imports System.Windows.Forms
 ''' Layout:
 '''   Top pane   : configuration panel (folder, firmware versions, options)
 '''   Bottom pane: color-coded log RichTextBox
-'''   ToolStrip  : Run, Stop, Clear, Open Log Folder
+'''   ToolStrip  : Run, Stop, Clear, Open Scripts Folder, UDP Log Viewer
 ''' </summary>
 Public Class AdvancedBackportForm
     Inherits Form
 
     ' ---------------------------------------------------------------------------
-    ' UI Controls (created in code — no Designer dependency)
+    ' UI Controls
     ' ---------------------------------------------------------------------------
 
-    Private WithEvents toolStrip       As ToolStrip
-    Private WithEvents btnRun          As ToolStripButton
-    Private WithEvents btnStop         As ToolStripButton
-    Private WithEvents btnClear        As ToolStripButton
-    Private WithEvents btnOpenScripts  As ToolStripButton
+    Private WithEvents toolStrip      As ToolStrip
+    Private WithEvents btnRun         As ToolStripButton
+    Private WithEvents btnStop        As ToolStripButton
+    Private WithEvents btnClear       As ToolStripButton
+    Private WithEvents btnOpenScripts As ToolStripButton
+    Private WithEvents btnUdpViewer   As ToolStripButton
 
     Private splitContainer As SplitContainer
 
-    ' Config panel controls
-    Private grpConfig          As GroupBox
-    Private lblGameFolder      As Label
-    Private txtGameFolder      As TextBox
+    ' Config panel
+    Private grpConfig        As GroupBox
+    Private lblGameFolder    As Label
+    Private txtGameFolder    As TextBox
     Private WithEvents btnBrowseFolder As Button
-    Private lblFwCurrent       As Label
-    Private cmbFwCurrent       As ComboBox
-    Private lblFwTarget        As Label
-    Private cmbFwTarget        As ComboBox
-    Private chkApplyBps        As CheckBox
-    Private chkStubMissing     As CheckBox
-    Private chkResign          As CheckBox
-    Private lblPcIp            As Label
-    Private txtPcIp            As TextBox
-    Private WithEvents btnStartUdpServer As Button
+    Private lblFwCurrent     As Label
+    Private cmbFwCurrent     As ComboBox
+    Private lblFwTarget      As Label
+    Private cmbFwTarget      As ComboBox
+    Private chkApplyBps      As CheckBox
+    Private chkStubMissing   As CheckBox
+    Private chkResign        As CheckBox
 
     ' Log panel
     Private rtbLog As RichTextBox
@@ -52,8 +52,7 @@ Public Class AdvancedBackportForm
 
     ' Runtime
     Private _cts As CancellationTokenSource
-    Private _udpServerTask As Task
-    Private _udpServerCts  As CancellationTokenSource
+    Private _udpViewer As UdpLogViewerForm
 
     ' ---------------------------------------------------------------------------
     ' Constructor
@@ -61,11 +60,6 @@ Public Class AdvancedBackportForm
 
     Public Sub New()
         InitializeComponent()
-        Me.Text = "Advanced Backport Pipeline"
-        Me.Size = New Size(900, 620)
-        Me.MinimumSize = New Size(700, 500)
-        Me.StartPosition = FormStartPosition.CenterParent
-        Me.Icon = TryCast(My.Resources.ResourceManager.GetObject("backport"), Icon)
     End Sub
 
     ' ---------------------------------------------------------------------------
@@ -73,51 +67,120 @@ Public Class AdvancedBackportForm
     ' ---------------------------------------------------------------------------
 
     Private Sub InitializeComponent()
+        Me.Text = "Advanced Backport Pipeline"
+        Me.Size = New Size(900, 620)
+        Me.MinimumSize = New Size(700, 480)
+        Me.StartPosition = FormStartPosition.CenterParent
+
         ' --- ToolStrip ---
         toolStrip = New ToolStrip()
-        btnRun = New ToolStripButton("▶ Run") With {.ToolTipText = "Start backport pipeline", .ForeColor = Color.DarkGreen}
-        btnStop = New ToolStripButton("■ Stop") With {.ToolTipText = "Stop running pipeline", .Enabled = False, .ForeColor = Color.DarkRed}
-        btnClear = New ToolStripButton("✕ Clear Log") With {.ToolTipText = "Clear log output"}
-        btnOpenScripts = New ToolStripButton("📂 Scripts Folder") With {.ToolTipText = "Open scripts/ in Explorer"}
-        toolStrip.Items.AddRange({btnRun, btnStop, New ToolStripSeparator(), btnClear, btnOpenScripts})
+        btnRun = New ToolStripButton("▶ Run") With {
+            .ToolTipText = "Start backport pipeline",
+            .ForeColor = Color.DarkGreen,
+            .Font = New Font("Segoe UI", 9, FontStyle.Bold)
+        }
+        btnStop = New ToolStripButton("■ Stop") With {
+            .ToolTipText = "Stop running pipeline",
+            .Enabled = False,
+            .ForeColor = Color.DarkRed,
+            .Font = New Font("Segoe UI", 9, FontStyle.Bold)
+        }
+        btnClear = New ToolStripButton("✕ Clear") With {.ToolTipText = "Clear log"}
+        btnOpenScripts = New ToolStripButton("📂 Scripts") With {.ToolTipText = "Open scripts/ folder in Explorer"}
+        btnUdpViewer = New ToolStripButton("📡 UDP Log Viewer") With {
+            .ToolTipText = "Open UDP log viewer (listens on port 9090 for payload logs)"
+        }
+        toolStrip.Items.AddRange({
+            btnRun, btnStop,
+            New ToolStripSeparator(),
+            btnClear, btnOpenScripts,
+            New ToolStripSeparator(),
+            btnUdpViewer
+        })
 
-        ' --- Config panel ---
-        grpConfig = New GroupBox() With {.Text = "Pipeline Configuration", .Dock = DockStyle.Fill, .Padding = New Padding(8)}
+        ' --- Config GroupBox ---
+        grpConfig = New GroupBox() With {
+            .Text = "Pipeline Configuration",
+            .Dock = DockStyle.Fill,
+            .Padding = New Padding(8)
+        }
 
-        lblGameFolder = New Label() With {.Text = "Game Folder:", .AutoSize = True, .Location = New Point(10, 24)}
-        txtGameFolder = New TextBox() With {.Location = New Point(110, 21), .Width = 440, .ReadOnly = True}
-        btnBrowseFolder = New Button() With {.Text = "Browse…", .Location = New Point(558, 19), .Width = 75}
+        lblGameFolder = New Label() With {
+            .Text = "Game Folder:",
+            .AutoSize = True,
+            .Location = New Point(10, 26)
+        }
+        txtGameFolder = New TextBox() With {
+            .Location = New Point(110, 23),
+            .Width = 430,
+            .ReadOnly = True
+        }
+        btnBrowseFolder = New Button() With {
+            .Text = "Browse…",
+            .Location = New Point(548, 21),
+            .Width = 75,
+            .Height = 24
+        }
 
-        lblFwCurrent = New Label() With {.Text = "Current FW:", .AutoSize = True, .Location = New Point(10, 56)}
-        cmbFwCurrent = New ComboBox() With {.Location = New Point(110, 52), .Width = 100, .DropDownStyle = ComboBoxStyle.DropDownList}
-        lblFwTarget = New Label() With {.Text = "Target FW:", .AutoSize = True, .Location = New Point(230, 56)}
-        cmbFwTarget = New ComboBox() With {.Location = New Point(320, 52), .Width = 100, .DropDownStyle = ComboBoxStyle.DropDownList}
+        lblFwCurrent = New Label() With {
+            .Text = "Current FW:",
+            .AutoSize = True,
+            .Location = New Point(10, 58)
+        }
+        cmbFwCurrent = New ComboBox() With {
+            .Location = New Point(110, 54),
+            .Width = 100,
+            .DropDownStyle = ComboBoxStyle.DropDownList
+        }
+        lblFwTarget = New Label() With {
+            .Text = "Target FW:",
+            .AutoSize = True,
+            .Location = New Point(228, 58)
+        }
+        cmbFwTarget = New ComboBox() With {
+            .Location = New Point(320, 54),
+            .Width = 100,
+            .DropDownStyle = ComboBoxStyle.DropDownList
+        }
 
-        Dim fwVersions As String() = {"1.00", "1.02", "1.05", "1.10", "1.14",
-                                       "2.00", "2.20", "2.25", "2.26", "2.50",
-                                       "3.00", "3.20", "3.21", "4.00", "4.02",
-                                       "4.50", "4.51", "5.00", "5.02", "5.10",
-                                       "5.25", "6.00", "6.02", "6.50", "7.00",
-                                       "7.01", "7.02", "7.04", "7.20", "7.55",
-                                       "7.61", "8.00", "8.52", "9.00", "9.03",
-                                       "9.60", "10.00", "10.01", "10.50", "11.00"}
+        Dim fwVersions As String() = {
+            "1.00", "1.02", "1.05", "1.10", "1.14",
+            "2.00", "2.20", "2.25", "2.26", "2.50",
+            "3.00", "3.20", "3.21", "4.00", "4.02",
+            "4.50", "4.51", "5.00", "5.02", "5.10",
+            "5.25", "6.00", "6.02", "6.50", "7.00",
+            "7.01", "7.02", "7.04", "7.20", "7.55",
+            "7.61", "8.00", "8.52", "9.00", "9.03",
+            "9.60", "10.00", "10.01", "10.50", "11.00"
+        }
         cmbFwCurrent.Items.AddRange(fwVersions)
         cmbFwTarget.Items.AddRange(fwVersions)
         cmbFwCurrent.SelectedItem = "10.01"
         cmbFwTarget.SelectedItem = "7.61"
 
-        chkApplyBps = New CheckBox() With {.Text = "Apply BPS patches", .AutoSize = True, .Location = New Point(10, 86), .Checked = True}
-        chkStubMissing = New CheckBox() With {.Text = "Stub missing symbols (ARM64 ret-zero)", .AutoSize = True, .Location = New Point(190, 86), .Checked = True}
-        chkResign = New CheckBox() With {.Text = "Re-sign ELFs", .AutoSize = True, .Location = New Point(460, 86)}
+        chkApplyBps = New CheckBox() With {
+            .Text = "Apply BPS patches",
+            .AutoSize = True,
+            .Location = New Point(10, 90),
+            .Checked = True
+        }
+        chkStubMissing = New CheckBox() With {
+            .Text = "Stub missing symbols (ARM64 ret-zero)",
+            .AutoSize = True,
+            .Location = New Point(190, 90),
+            .Checked = True
+        }
+        chkResign = New CheckBox() With {
+            .Text = "Re-sign ELFs",
+            .AutoSize = True,
+            .Location = New Point(460, 90)
+        }
 
-        lblPcIp = New Label() With {.Text = "PC IP (UDP log):", .AutoSize = True, .Location = New Point(10, 116)}
-        txtPcIp = New TextBox() With {.Text = "192.168.1.100", .Location = New Point(120, 112), .Width = 130}
-        btnStartUdpServer = New Button() With {.Text = "Start UDP Server", .Location = New Point(260, 110), .Width = 130, .Height = 26}
-
-        For Each ctrl As Control In {lblGameFolder, txtGameFolder, btnBrowseFolder,
-                                      lblFwCurrent, cmbFwCurrent, lblFwTarget, cmbFwTarget,
-                                      chkApplyBps, chkStubMissing, chkResign,
-                                      lblPcIp, txtPcIp, btnStartUdpServer}
+        For Each ctrl As Control In {
+            lblGameFolder, txtGameFolder, btnBrowseFolder,
+            lblFwCurrent, cmbFwCurrent, lblFwTarget, cmbFwTarget,
+            chkApplyBps, chkStubMissing, chkResign
+        }
             grpConfig.Controls.Add(ctrl)
         Next
 
@@ -125,7 +188,7 @@ Public Class AdvancedBackportForm
         rtbLog = New RichTextBox() With {
             .Dock = DockStyle.Fill,
             .ReadOnly = True,
-            .BackColor = Color.FromArgb(20, 20, 30),
+            .BackColor = Color.FromArgb(18, 18, 28),
             .ForeColor = Color.White,
             .Font = New Font("Consolas", 9),
             .BorderStyle = BorderStyle.None
@@ -135,8 +198,8 @@ Public Class AdvancedBackportForm
         splitContainer = New SplitContainer() With {
             .Dock = DockStyle.Fill,
             .Orientation = Orientation.Horizontal,
-            .SplitterDistance = 155,
-            .Panel1MinSize = 120
+            .SplitterDistance = 125,
+            .Panel1MinSize = 110
         }
         splitContainer.Panel1.Controls.Add(grpConfig)
         splitContainer.Panel2.Controls.Add(rtbLog)
@@ -156,7 +219,9 @@ Public Class AdvancedBackportForm
     ' ---------------------------------------------------------------------------
 
     Private Sub BtnBrowseFolder_Click(sender As Object, e As EventArgs) Handles btnBrowseFolder.Click
-        Using dlg As New FolderBrowserDialog() With {.Description = "Select game folder containing .sprx/.prx/.bin files"}
+        Using dlg As New FolderBrowserDialog() With {
+            .Description = "Select game folder containing .sprx / .prx / .bin files"
+        }
             If dlg.ShowDialog() = DialogResult.OK Then
                 txtGameFolder.Text = dlg.SelectedPath
             End If
@@ -164,14 +229,15 @@ Public Class AdvancedBackportForm
     End Sub
 
     Private Async Sub BtnRun_Click(sender As Object, e As EventArgs) Handles btnRun.Click
-        If String.IsNullOrWhiteSpace(txtGameFolder.Text) OrElse Not Directory.Exists(txtGameFolder.Text) Then
-            MessageBox.Show("Select a valid game folder first.", "Invalid Folder",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        If String.IsNullOrWhiteSpace(txtGameFolder.Text) OrElse
+           Not Directory.Exists(txtGameFolder.Text) Then
+            MessageBox.Show("Select a valid game folder first.",
+                            "Invalid Folder", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
 
         SetRunningState(True)
-        AppendLog($"[ABP] Starting pipeline: {cmbFwCurrent.Text} → {cmbFwTarget.Text}", Color.Cyan)
+        AppendLog($"[ABP] Pipeline starting: {cmbFwCurrent.Text} → {cmbFwTarget.Text}", Color.Cyan)
         AppendLog($"[ABP] Game folder: {txtGameFolder.Text}", Color.Gray)
 
         _cts = New CancellationTokenSource()
@@ -179,6 +245,7 @@ Public Class AdvancedBackportForm
         Dim scriptPath As String = ScriptPath("advanced_backport.py")
         If scriptPath Is Nothing Then
             AppendLog("[ERROR] advanced_backport.py not found in scripts/ folder.", Color.Red)
+            AppendLog("       Make sure the scripts/ directory is next to the application.", Color.Orange)
             SetRunningState(False)
             Return
         End If
@@ -192,8 +259,9 @@ Public Class AdvancedBackportForm
         If chkResign.Checked Then argsBuilder.Append("--resign ")
         argsBuilder.Append("--no-color")
 
-        Dim exitCode = Await PythonRunner.RunAsync(
-            scriptPath, argsBuilder.ToString(),
+        Dim exitCode As Integer = Await PythonRunner.RunAsync(
+            scriptPath,
+            argsBuilder.ToString(),
             onOutput:=Sub(line) SafeAppendLog(line),
             onError:=Sub(line) SafeAppendLog(line, Color.Orange),
             ct:=_cts.Token)
@@ -209,7 +277,7 @@ Public Class AdvancedBackportForm
 
     Private Sub BtnStop_Click(sender As Object, e As EventArgs) Handles btnStop.Click
         _cts?.Cancel()
-        AppendLog("[ABP] Stop requested.", Color.Yellow)
+        AppendLog("[ABP] Stop requested by user.", Color.Yellow)
     End Sub
 
     Private Sub BtnClear_Click(sender As Object, e As EventArgs) Handles btnClear.Click
@@ -217,42 +285,37 @@ Public Class AdvancedBackportForm
     End Sub
 
     Private Sub BtnOpenScripts_Click(sender As Object, e As EventArgs) Handles btnOpenScripts.Click
-        Dim scriptsDir = ScriptsFolder()
-        If scriptsDir IsNot Nothing Then
-            Process.Start("explorer.exe", scriptsDir)
+        Dim dir As String = ScriptsFolder()
+        If dir IsNot Nothing Then
+            Process.Start("explorer.exe", dir)
         Else
-            MessageBox.Show("scripts/ folder not found.", "Not Found",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(
+                "scripts/ folder not found." & Environment.NewLine &
+                "Expected location: <repo root>\scripts\",
+                "Not Found", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
     End Sub
 
-    Private Async Sub BtnStartUdpServer_Click(sender As Object, e As EventArgs) Handles btnStartUdpServer.Click
-        If _udpServerCts IsNot Nothing AndAlso Not _udpServerCts.IsCancellationRequested Then
-            ' Stop server
-            _udpServerCts.Cancel()
-            btnStartUdpServer.Text = "Start UDP Server"
-            AppendLog("[UDP] Server stopped.", Color.Yellow)
+    ''' <summary>
+    ''' Open (or bring to front) the UDP Log Viewer, which listens on port 9090
+    ''' for messages from the C payload running on the PS5.
+    ''' No Python subprocess required — listener is native VB.NET.
+    ''' </summary>
+    Private Sub BtnUdpViewer_Click(sender As Object, e As EventArgs) Handles btnUdpViewer.Click
+        If _udpViewer IsNot Nothing AndAlso Not _udpViewer.IsDisposed Then
+            _udpViewer.BringToFront()
             Return
         End If
+        _udpViewer = New UdpLogViewerForm()
+        _udpViewer.Show(Me)
+    End Sub
 
-        Dim scriptPath As String = ScriptPath("udp_log_server.py")
-        If scriptPath Is Nothing Then
-            AppendLog("[ERROR] udp_log_server.py not found.", Color.Red)
-            Return
+    Protected Overrides Sub OnFormClosed(e As FormClosedEventArgs)
+        _cts?.Cancel()
+        If _udpViewer IsNot Nothing AndAlso Not _udpViewer.IsDisposed Then
+            _udpViewer.Close()
         End If
-
-        _udpServerCts = New CancellationTokenSource()
-        btnStartUdpServer.Text = "Stop UDP Server"
-        AppendLog($"[UDP] Server starting on 0.0.0.0:9090 ...", Color.Cyan)
-
-        _udpServerTask = PythonRunner.RunAsync(
-            scriptPath, "--port 9090",
-            onOutput:=Sub(line) SafeAppendLog(line, Color.DarkCyan),
-            onError:=Sub(line) SafeAppendLog(line, Color.Orange),
-            ct:=_udpServerCts.Token)
-
-        Await _udpServerTask
-        btnStartUdpServer.Text = "Start UDP Server"
+        MyBase.OnFormClosed(e)
     End Sub
 
     ' ---------------------------------------------------------------------------
@@ -293,30 +356,32 @@ Public Class AdvancedBackportForm
         If up.Contains("[BPS]") Then Return Color.SkyBlue
         If up.Contains("[SDK]") Then Return Color.LightGreen
         If up.Contains("[REDIRECT]") Then Return Color.Cyan
+        If up.Contains("[PAYLOAD]") OrElse up.Contains("[HOOK]") Then Return Color.Cyan
         Return Color.White
     End Function
 
-    Private Shared Function ScriptsFolder() As String
-        ' Look for scripts/ relative to the application base directory,
-        ' then one level up (development layout: repo root / scripts).
-        Dim appDir = AppDomain.CurrentDomain.BaseDirectory
-        Dim candidates As String() = {
-            Path.Combine(appDir, "scripts"),
-            Path.Combine(appDir, "..", "scripts"),
-            Path.Combine(appDir, "..", "..", "scripts")
-        }
-        For Each c In candidates
-            Dim full = Path.GetFullPath(c)
-            If Directory.Exists(full) Then Return full
+    ''' <summary>
+    ''' Search for the scripts/ directory by walking up from the exe location.
+    ''' Works in both Debug (bin\Debug\net8.0-windows\) and installed layouts.
+    ''' </summary>
+    Friend Shared Function ScriptsFolder() As String
+        Dim dir As String = AppDomain.CurrentDomain.BaseDirectory
+        For i As Integer = 0 To 6
+            Dim candidate As String = Path.GetFullPath(Path.Combine(dir, "scripts"))
+            If Directory.Exists(candidate) Then Return candidate
+            Dim parent As String = Path.GetDirectoryName(dir)
+            If parent Is Nothing OrElse parent = dir Then Exit For
+            dir = parent
         Next
         Return Nothing
     End Function
 
     Private Shared Function ScriptPath(scriptName As String) As String
-        Dim folder = ScriptsFolder()
+        Dim folder As String = ScriptsFolder()
         If folder Is Nothing Then Return Nothing
-        Dim p = Path.Combine(folder, scriptName)
-        Return If(File.Exists(p), p, Nothing)
+        Dim p As String = Path.Combine(folder, scriptName)
+        If File.Exists(p) Then Return p
+        Return Nothing
     End Function
 
 End Class
