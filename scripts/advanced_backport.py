@@ -187,7 +187,6 @@ def _find_sce_param_offsets(data: bytes) -> list[tuple[int, int, str]]:
     e_phnum = struct.unpack_from("<H", data, 0x38)[0]
 
     patchable_types = {_PT_SCE_PROCPARAM, _PT_SCE_MODULE_PARAM}
-    valid_magics = {_SCE_PROCESS_PARAM_MAGIC, _SCE_MODULE_PARAM_MAGIC}
 
     results = []
     for i in range(e_phnum):
@@ -201,9 +200,8 @@ def _find_sce_param_offsets(data: bytes) -> list[tuple[int, int, str]]:
         p_filesz = struct.unpack_from("<Q", data, off + 0x20)[0]
         if p_filesz < 0x18 or p_offset + p_filesz > len(data):
             continue
-        # Validate magic at offset +0x08 within the segment
-        magic = struct.unpack_from("<I", data, p_offset + _SCE_PARAM_MAGIC_OFF)[0]
-        if magic not in valid_magics:
+        # Check that PS5 SDK offset is within bounds
+        if p_offset + _SCE_PARAM_PS5_SDK_OFF + 4 > len(data):
             continue
         ps4_off = p_offset + _SCE_PARAM_PS4_SDK_OFF
         ps5_off = p_offset + _SCE_PARAM_PS5_SDK_OFF
@@ -517,6 +515,7 @@ class BackportPipeline:
             self.args.fw_current, self.args.fw_target))
         n_patched = 0
         n_skipped = 0
+        n_already = 0
         for fpath in files:
             fname = os.path.basename(fpath)
             try:
@@ -528,11 +527,15 @@ class BackportPipeline:
                     n_patched += 1
                 else:
                     self.results["step_sdk_patch"]["skipped"].append(fname)
-                    n_skipped += 1
+                    if "already" in detail:
+                        n_already += 1
+                    else:
+                        n_skipped += 1
+                    _log("  [SDK] {} — {}".format(fname, detail), DIM)
             except Exception as ex:
                 _log("  [WARN] SDK patch failed for {}: {}".format(fname, ex), YELLOW)
-        _log("  --- SDK patched: {}, skipped: {} (no PROCPARAM or already target)".format(
-            n_patched, n_skipped), CYAN)
+        _log("  --- SDK patched: {}, already at target: {}, no param: {}".format(
+            n_patched, n_already, n_skipped), CYAN)
 
     # ---- Step 5: Re-signing (placeholder) ------------------------------
 
