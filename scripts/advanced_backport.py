@@ -511,18 +511,29 @@ class BackportPipeline:
 
     # ---- Step 4: SDK Version Patch -------------------------------------
 
-    def step_sdk_patch(self, files: list[str]):
+    def step_sdk_patch(self, files: list[str],
+                       decrypt_map: dict[str, str] | None = None):
         _header("Step 4: SDK Version Patch ({} -> {})".format(
             self.args.fw_current, self.args.fw_target))
+
+        if decrypt_map is None:
+            decrypt_map = {}
+
         n_patched = 0
         n_skipped = 0
         n_already = 0
         for fpath in files:
             fname = os.path.basename(fpath)
+            # For SELF files, patch the decrypted ELF (SELF data is encrypted)
+            patch_path = decrypt_map.get(fpath, fpath)
             try:
                 patched, detail = _patch_sdk_version_in_file(
-                    fpath, self.args.fw_target)
+                    patch_path, self.args.fw_target)
                 if patched:
+                    # If we patched a decrypted copy, copy it back over the original
+                    # so that step_resign can re-sign the patched ELF
+                    if patch_path != fpath:
+                        shutil.copy2(patch_path, fpath)
                     self.results["step_sdk_patch"]["patched"].append(fname)
                     _log("  [SDK] {} — {}".format(fname, detail), GREEN)
                     n_patched += 1
@@ -761,7 +772,7 @@ class BackportPipeline:
         self.step_analysis(files, decrypt_map)
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
-        self.step_sdk_patch(files)
+        self.step_sdk_patch(files, decrypt_map)
         self.step_patch_param()
         self.step_resign(files, decrypt_map)
 
