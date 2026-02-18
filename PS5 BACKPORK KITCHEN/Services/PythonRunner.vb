@@ -150,6 +150,90 @@ Public Class PythonRunner
     End Function
 
     ' ---------------------------------------------------------------------------
+    ' Synchronous execution (OutputDataReceived events, no async state machine)
+    ' ---------------------------------------------------------------------------
+
+    ''' <summary>
+    ''' Run a Python script synchronously, streaming output via OutputDataReceived.
+    ''' Intended to be called from Task.Run(Sub() ...) so the UI stays responsive.
+    ''' Returns the process exit code.
+    ''' </summary>
+    Public Shared Function RunSync(
+        scriptPath As String,
+        args As String,
+        onOutput As Action(Of String),
+        onError As Action(Of String),
+        ct As CancellationToken
+    ) As Integer
+
+        Dim python As String = FindPython()
+        If python Is Nothing Then
+            If onOutput IsNot Nothing Then
+                onOutput.Invoke("[ERROR] Python interpreter not found. Install Python 3.9+ or place python.exe in the 'python' sub-folder next to the app.")
+            End If
+            Return -1
+        End If
+
+        If Not File.Exists(scriptPath) Then
+            If onError IsNot Nothing Then
+                onError.Invoke("[ERROR] Script not found: " & scriptPath)
+            End If
+            Return -1
+        End If
+
+        Dim workDir As String = Path.GetDirectoryName(scriptPath)
+
+        Dim psi As New ProcessStartInfo() With {
+            .FileName = python,
+            .Arguments = """" & scriptPath & """ " & args,
+            .WorkingDirectory = workDir,
+            .UseShellExecute = False,
+            .RedirectStandardOutput = True,
+            .RedirectStandardError = True,
+            .CreateNoWindow = True,
+            .StandardOutputEncoding = Text.Encoding.UTF8,
+            .StandardErrorEncoding = Text.Encoding.UTF8
+        }
+
+        Using proc As New Process() With {.StartInfo = psi, .EnableRaisingEvents = True}
+            AddHandler proc.OutputDataReceived, Sub(s As Object, ev As DataReceivedEventArgs)
+                                                   If ev.Data IsNot Nothing AndAlso onOutput IsNot Nothing Then
+                                                       onOutput.Invoke(ev.Data)
+                                                   End If
+                                               End Sub
+            AddHandler proc.ErrorDataReceived, Sub(s As Object, ev As DataReceivedEventArgs)
+                                                   If ev.Data IsNot Nothing AndAlso onError IsNot Nothing Then
+                                                       onError.Invoke(ev.Data)
+                                                   End If
+                                               End Sub
+
+            proc.Start()
+            proc.BeginOutputReadLine()
+            proc.BeginErrorReadLine()
+
+            ' Register cancellation: kill process when token fires
+            Dim ctReg As CancellationTokenRegistration = Nothing
+            If ct <> CancellationToken.None Then
+                ctReg = ct.Register(Sub()
+                                        Try
+                                            If Not proc.HasExited Then proc.Kill()
+                                        Catch
+                                        End Try
+                                    End Sub)
+            End If
+
+            proc.WaitForExit()
+            ctReg.Dispose()
+
+            Try
+                Return proc.ExitCode
+            Catch
+                Return -1
+            End Try
+        End Using
+    End Function
+
+    ' ---------------------------------------------------------------------------
     ' Stream reader
     ' ---------------------------------------------------------------------------
 

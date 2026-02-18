@@ -380,33 +380,23 @@ Public Class AdvancedBackportForm
         Dim pipelineErr As Action(Of String) = Sub(line) SafeAppendLog(line, Color.Orange)
         Dim pipelineCt As CancellationToken = _cts.Token
 
-        ' Delegate the await to a Function returning Task to avoid VB.NET Conversions.ToInteger
-        ' in the async state machine when awaiting Task(Of Integer) inside Async Sub.
-        Await RunPipelineHelperAsync(scriptPath, pipelineArgs, pipelineOut, pipelineErr, pipelineCt)
+        ' Task.Run(Sub()...) returns a non-generic Task — no Task(Of Integer) anywhere
+        ' in the await chain, so VB.NET Option-Strict-Off cannot inject Conversions.ToInteger.
+        ' RunSync is fully synchronous and drives the process via OutputDataReceived events.
+        Dim runCode As Integer = 0
+        Await Task.Run(Sub()
+                           runCode = PythonRunner.RunSync(scriptPath, pipelineArgs,
+                                                          pipelineOut, pipelineErr, pipelineCt)
+                       End Sub)
+
+        If runCode = 0 Then
+            SafeAppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
+        Else
+            SafeAppendLog($"[ABP] Pipeline exited with code {runCode}.", Color.Red)
+        End If
 
         SetRunningState(False)
     End Sub
-
-    ''' <summary>
-    ''' Wraps PythonRunner.RunAsync so BtnRun_Click (Async Sub) awaits a plain Task,
-    ''' avoiding the VB.NET Option-Strict-Off implicit Conversions.ToInteger bug.
-    ''' </summary>
-    Private Async Function RunPipelineHelperAsync(
-        scriptPath As String,
-        args As String,
-        onOutput As Action(Of String),
-        onError As Action(Of String),
-        ct As CancellationToken
-    ) As Task
-        Dim runTask As Task(Of Integer) = PythonRunner.RunAsync(scriptPath, args, onOutput, onError, ct)
-        Await runTask
-        Dim exitCode As Integer = runTask.Result
-        If exitCode = 0 Then
-            SafeAppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
-        Else
-            SafeAppendLog($"[ABP] Pipeline exited with code {exitCode}.", Color.Red)
-        End If
-    End Function
 
     Private Sub BtnStop_Click(sender As Object, e As EventArgs) Handles btnStop.Click
         _cts?.Cancel()
