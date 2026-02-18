@@ -118,11 +118,13 @@ ET_SCE_DYNEXEC = 0xFE10
 ET_SCE_DYNAMIC = 0xFE18
 
 # PS5/PS4 segment types
-PT_SCE_PROCPARAM   = 0x61000001
-PT_SCE_RELRO       = 0x61000002
-PT_SCE_DYNLIBDATA  = 0x61000010
-PT_SCE_MODULE_PARAM = 0x61000011
-PT_SCE_PROCESS_PARAM = 0x61000012
+PT_SCE_PROCPARAM    = 0x61000001   # eboot.bin process param
+PT_SCE_MODULE_PARAM = 0x61000002   # .prx/.sprx module param
+PT_SCE_DYNLIBDATA   = 0x61000010
+
+# SCE param segment magic values (at offset +0x08 within the segment)
+SCE_PROCESS_PARAM_MAGIC = 0x4942524F  # "IBRO"
+SCE_MODULE_PARAM_MAGIC  = 0x3C13F4BF
 
 # PS5/PS4 dynamic tags
 DT_SCE_NEEDED      = 0x6100000D
@@ -429,28 +431,38 @@ class PS5ELFParser:
         return result
 
     def get_procparam(self) -> dict:
-        """Parse PT_SCE_PROCPARAM for SDK version info."""
+        """Parse PT_SCE_PROCPARAM or PT_SCE_MODULE_PARAM for SDK version info.
+        eboot.bin uses PROCPARAM (0x61000001), .prx uses MODULE_PARAM (0x61000002).
+        """
+        sce_param_types = {PT_SCE_PROCPARAM, PT_SCE_MODULE_PARAM}
+        valid_magics = {SCE_PROCESS_PARAM_MAGIC, SCE_MODULE_PARAM_MAGIC}
+
         for ph in self._phdrs:
-            if ph["p_type"] == PT_SCE_PROCPARAM:
-                off = ph["p_offset"]
-                sz = ph["p_filesz"]
-                if sz < 0x18 or off + sz > len(self._data):
-                    continue
-                raw = self._data[off:off + sz]
-                ps4_sdk = struct.unpack_from("<I", raw, 0x08)[0] if sz >= 0x0C else 0
-                ps5_sdk = struct.unpack_from("<I", raw, 0x14)[0] if sz >= 0x18 else 0
+            if ph["p_type"] not in sce_param_types:
+                continue
+            off = ph["p_offset"]
+            sz = ph["p_filesz"]
+            if sz < 0x18 or off + sz > len(self._data):
+                continue
+            # Validate magic at offset +0x08
+            magic = struct.unpack_from("<I", self._data, off + 0x08)[0]
+            if magic not in valid_magics:
+                continue
+            # PS4 SDK at +0x10, PS5 SDK at +0x14
+            ps4_sdk = struct.unpack_from("<I", self._data, off + 0x10)[0] if sz >= 0x14 else 0
+            ps5_sdk = struct.unpack_from("<I", self._data, off + 0x14)[0] if sz >= 0x18 else 0
 
-                def _fmt(v):
-                    return "{}.{}.{}.{}".format(
-                        (v >> 24) & 0xFF, (v >> 16) & 0xFF,
-                        (v >> 8) & 0xFF, v & 0xFF)
+            def _fmt(v):
+                return "{}.{}.{}.{}".format(
+                    (v >> 24) & 0xFF, (v >> 16) & 0xFF,
+                    (v >> 8) & 0xFF, v & 0xFF)
 
-                return {
-                    "ps4_sdk": ps4_sdk,
-                    "ps5_sdk": ps5_sdk,
-                    "ps4_sdk_str": _fmt(ps4_sdk),
-                    "ps5_sdk_str": _fmt(ps5_sdk),
-                }
+            return {
+                "ps4_sdk": ps4_sdk,
+                "ps5_sdk": ps5_sdk,
+                "ps4_sdk_str": _fmt(ps4_sdk),
+                "ps5_sdk_str": _fmt(ps5_sdk),
+            }
         return {"ps4_sdk": 0, "ps5_sdk": 0, "ps4_sdk_str": "unknown", "ps5_sdk_str": "unknown"}
 
 

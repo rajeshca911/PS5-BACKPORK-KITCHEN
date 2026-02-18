@@ -157,18 +157,23 @@ FW_SDK_MAP: dict[str, tuple[int, int]] = {
     "11.00": (0x0B000040, 0x12090001),
 }
 
-# Offset of PS4 SDK field within PT_SCE_PROCPARAM segment
-_PROCPARAM_PS4_OFF = 0x08
-# Offset of PS5 SDK field within PT_SCE_PROCPARAM segment
-_PROCPARAM_PS5_OFF = 0x14
+# SCE parameter segment types
+_PT_SCE_PROCPARAM   = 0x61000001   # eboot.bin (process param)
+_PT_SCE_MODULE_PARAM = 0x61000002  # .prx/.sprx (module param)
 
-PT_SCE_PROCPARAM = 0x61000001
+# Magic validation values
+_SCE_PROCESS_PARAM_MAGIC = 0x4942524F  # "IBRO"
+_SCE_MODULE_PARAM_MAGIC  = 0x3C13F4BF
+
+# Byte offsets within the SCE parameter structure
+_SCE_PARAM_MAGIC_OFF   = 0x08   # magic uint32
+_SCE_PARAM_PS4_SDK_OFF = 0x10   # PS4 SDK uint32
+_SCE_PARAM_PS5_SDK_OFF = 0x14   # PS5 SDK uint32
 
 
-def _find_procparam_offsets(data: bytes) -> list[tuple[int, int]]:
-    """Find PT_SCE_PROCPARAM segments in an ELF and return their file offsets.
-    Returns list of (ps4_sdk_file_offset, ps5_sdk_file_offset).
-    Works with both 64-bit ELFs (PS5 uses 64-bit x86_64).
+def _find_sce_param_offsets(data: bytes) -> list[tuple[int, int, str]]:
+    """Find PT_SCE_PROCPARAM and PT_SCE_MODULE_PARAM segments in an ELF.
+    Returns list of (ps4_sdk_file_offset, ps5_sdk_file_offset, segment_type).
     """
     if len(data) < 0x40 or data[:4] != b'\x7fELF':
         return []
@@ -181,19 +186,29 @@ def _find_procparam_offsets(data: bytes) -> list[tuple[int, int]]:
     e_phentsize = struct.unpack_from("<H", data, 0x36)[0]
     e_phnum = struct.unpack_from("<H", data, 0x38)[0]
 
+    patchable_types = {_PT_SCE_PROCPARAM, _PT_SCE_MODULE_PARAM}
+    valid_magics = {_SCE_PROCESS_PARAM_MAGIC, _SCE_MODULE_PARAM_MAGIC}
+
     results = []
     for i in range(e_phnum):
         off = e_phoff + i * e_phentsize
         if off + e_phentsize > len(data):
             break
         p_type = struct.unpack_from("<I", data, off)[0]
-        if p_type == PT_SCE_PROCPARAM:
-            p_offset = struct.unpack_from("<Q", data, off + 0x08)[0]
-            p_filesz = struct.unpack_from("<Q", data, off + 0x20)[0]
-            if p_filesz >= 0x18 and p_offset + p_filesz <= len(data):
-                ps4_off = p_offset + _PROCPARAM_PS4_OFF
-                ps5_off = p_offset + _PROCPARAM_PS5_OFF
-                results.append((ps4_off, ps5_off))
+        if p_type not in patchable_types:
+            continue
+        p_offset = struct.unpack_from("<Q", data, off + 0x08)[0]
+        p_filesz = struct.unpack_from("<Q", data, off + 0x20)[0]
+        if p_filesz < 0x18 or p_offset + p_filesz > len(data):
+            continue
+        # Validate magic at offset +0x08 within the segment
+        magic = struct.unpack_from("<I", data, p_offset + _SCE_PARAM_MAGIC_OFF)[0]
+        if magic not in valid_magics:
+            continue
+        ps4_off = p_offset + _SCE_PARAM_PS4_SDK_OFF
+        ps5_off = p_offset + _SCE_PARAM_PS5_SDK_OFF
+        seg_name = "PROCPARAM" if p_type == _PT_SCE_PROCPARAM else "MODULE_PARAM"
+        results.append((ps4_off, ps5_off, seg_name))
     return results
 
 
@@ -212,13 +227,13 @@ def _patch_sdk_version_in_file(file_path: str, fw_to: str) -> tuple[bool, str]:
     with open(file_path, "rb") as f:
         data = bytearray(f.read())
 
-    offsets = _find_procparam_offsets(bytes(data))
-    if not offsets:
-        return False, "no PT_SCE_PROCPARAM found"
+    segments = _find_sce_param_offsets(bytes(data))
+    if not segments:
+        return False, "no SCE param segment found"
 
     patched = False
     details = []
-    for ps4_off, ps5_off in offsets:
+    for ps4_off, ps5_off, seg_name in segments:
         ps4_cur = struct.unpack_from("<I", data, ps4_off)[0]
         ps5_cur = struct.unpack_from("<I", data, ps5_off)[0]
 
@@ -231,7 +246,7 @@ def _patch_sdk_version_in_file(file_path: str, fw_to: str) -> tuple[bool, str]:
                 (ps5_target >> 24) & 0xFF, (ps5_target >> 16) & 0xFF,
                 (ps5_target >> 8) & 0xFF, ps5_target & 0xFF)
             struct.pack_into("<I", data, ps5_off, ps5_target)
-            details.append("PS5 {} -> {}".format(old_str, new_str))
+            details.append("{}: PS5 {} -> {}".format(seg_name, old_str, new_str))
             changed = True
 
         if ps4_cur != ps4_target and ps4_cur != 0:
