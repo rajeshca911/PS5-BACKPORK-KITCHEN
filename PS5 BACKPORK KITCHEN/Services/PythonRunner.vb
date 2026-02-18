@@ -117,6 +117,8 @@ Public Class PythonRunner
             .StandardOutputEncoding = Text.Encoding.UTF8,
             .StandardErrorEncoding = Text.Encoding.UTF8
         }
+        psi.Environment("PYTHONIOENCODING") = "utf-8"
+        psi.Environment("PYTHONUNBUFFERED") = "1"
 
         Dim proc As New Process() With {.StartInfo = psi, .EnableRaisingEvents = True}
         proc.Start()
@@ -194,6 +196,9 @@ Public Class PythonRunner
             .StandardOutputEncoding = Text.Encoding.UTF8,
             .StandardErrorEncoding = Text.Encoding.UTF8
         }
+        ' Force Python to use UTF-8 for stdout/stderr so Unicode chars (arrows, etc.) don't crash
+        psi.Environment("PYTHONIOENCODING") = "utf-8"
+        psi.Environment("PYTHONUNBUFFERED") = "1"
 
         Using proc As New Process() With {.StartInfo = psi, .EnableRaisingEvents = True}
             AddHandler proc.OutputDataReceived, Sub(s As Object, ev As DataReceivedEventArgs)
