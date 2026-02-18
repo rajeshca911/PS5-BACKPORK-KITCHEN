@@ -542,25 +542,32 @@ class ELFAnalyzer:
 
         # Determine which libs exist in the target firmware
         fw_libs = db.get_all_lib_names(target_fw)
-        missing_libs = [lib for lib in required_libs if lib not in fw_libs]
+        has_exports_db = len(fw_libs) > 0
+
+        missing_libs = [lib for lib in required_libs if lib not in fw_libs] if has_exports_db else []
 
         # Check each imported symbol against exports DB
         found_symbols = []
         missing_symbols = []
-        for sym in imported:
-            nid_name = sym.get("nid_encoded", sym["name"])
-            owning_lib = db.find_owning_lib(target_fw, nid_name)
-            if owning_lib:
-                found_symbols.append({**sym, "lib": owning_lib})
-            else:
-                severity = "critical" if any(
-                    lib in missing_libs for lib in required_libs
-                ) else "warning"
-                missing_symbols.append({**sym, "severity": severity})
+        if has_exports_db:
+            for sym in imported:
+                nid_name = sym.get("nid_encoded", sym["name"])
+                owning_lib = db.find_owning_lib(target_fw, nid_name)
+                if owning_lib:
+                    found_symbols.append({**sym, "lib": owning_lib})
+                else:
+                    severity = "critical" if any(
+                        lib in missing_libs for lib in required_libs
+                    ) else "warning"
+                    missing_symbols.append({**sym, "severity": severity})
 
         # Compatibility score
         total = len(imported)
-        score = int((len(found_symbols) / total) * 100) if total else 100
+        if has_exports_db:
+            score = int((len(found_symbols) / total) * 100) if total else 100
+        else:
+            # Without exports DB, assume compatible (no data to compare)
+            score = 100
 
         # Code size from executable segments
         code_size = sum(s["size"] for s in text_segs)
