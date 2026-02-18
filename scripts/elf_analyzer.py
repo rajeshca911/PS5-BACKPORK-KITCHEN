@@ -12,8 +12,10 @@ Usage:
 
 import argparse
 import hashlib
+import io
 import json
 import os
+import struct
 import sys
 from pathlib import Path
 from typing import Optional
@@ -25,6 +27,33 @@ try:
     _PYELFTOOLS = True
 except ImportError:
     _PYELFTOOLS = False
+
+
+# ---------------------------------------------------------------------------
+# SELF (Signed ELF) container handling
+# ---------------------------------------------------------------------------
+
+# PS4/PS5 SELF magic bytes
+SELF_MAGIC_PS4 = b'\x4F\x15\x3D\x1D'
+SELF_MAGIC_PS5 = b'\x54\x14\xF5\xEE'
+ELF_MAGIC = b'\x7FELF'
+
+
+def is_self_file(data: bytes) -> bool:
+    """Check if data starts with a SELF (Signed ELF) magic."""
+    return data[:4] in (SELF_MAGIC_PS4, SELF_MAGIC_PS5)
+
+
+def extract_elf_from_self(data: bytes) -> bytes:
+    """Find and extract the embedded ELF from a SELF container.
+
+    SELF files wrap a standard ELF with a proprietary header.
+    We scan for the ELF magic (\\x7FELF) and return from that offset.
+    """
+    idx = data.find(ELF_MAGIC)
+    if idx < 0:
+        raise ELFAnalyzerError("No embedded ELF found in SELF file")
+    return data[idx:]
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +90,14 @@ class ELFAnalyzer:
             raise ELFAnalyzerError("File not found: {}".format(elf_path))
         self.elf_path = elf_path
         self._data = open(elf_path, "rb").read()
-        self._elf = ELFFile(open(elf_path, "rb"))
+        self._is_self = is_self_file(self._data)
+
+        if self._is_self:
+            # SELF container: extract the embedded ELF for pyelftools
+            elf_data = extract_elf_from_self(self._data)
+            self._elf = ELFFile(io.BytesIO(elf_data))
+        else:
+            self._elf = ELFFile(io.BytesIO(self._data))
 
     # ---- Public API --------------------------------------------------------
 

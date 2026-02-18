@@ -132,6 +132,25 @@ def _patch_sdk_version_in_file(file_path: str, fw_from: str, fw_to: str) -> bool
     # Extend this table with real values from VersionProfiles.vb
     FW_SDK_MAP: dict[str, tuple[int, int]] = {
         # fw_string: (ps5_sdk_uint32, ps4_sdk_uint32)  — little-endian in file
+        "1.00":  (0x01000001, 0x05508001),
+        "1.05":  (0x01050001, 0x05508001),
+        "2.00":  (0x02000001, 0x06508001),
+        "2.20":  (0x02200001, 0x06508001),
+        "2.50":  (0x02500001, 0x06508001),
+        "3.00":  (0x03000001, 0x07508001),
+        "3.20":  (0x03200001, 0x07508001),
+        "4.00":  (0x04000001, 0x08508001),
+        "4.50":  (0x04500001, 0x08508001),
+        "5.00":  (0x05000001, 0x08508001),
+        "5.02":  (0x05020001, 0x08508001),
+        "5.10":  (0x05100001, 0x08508001),
+        "5.25":  (0x05250001, 0x08508001),
+        "6.00":  (0x06000001, 0x09508001),
+        "6.02":  (0x06020001, 0x09508001),
+        "6.50":  (0x06500001, 0x09508001),
+        "7.00":  (0x07000001, 0x09508001),
+        "7.01":  (0x07010001, 0x09508001),
+        "7.55":  (0x07550001, 0x09508001),
         "7.61":  (0x07610001, 0x09508001),
         "8.00":  (0x08000001, 0x09508001),
         "8.52":  (0x08520001, 0x09508001),
@@ -321,15 +340,40 @@ class BackportPipeline:
 
     # ---- Step 5: Re-signing (placeholder) ------------------------------
 
+    @staticmethod
+    def _find_selfutil(explicit_path: str | None) -> str | None:
+        """Locate selfutil_patched.exe: explicit flag → SelfUtil/ next to app → PATH."""
+        if explicit_path and os.path.exists(explicit_path):
+            return explicit_path
+        # Walk up from scripts/ to find the app's SelfUtil directory
+        base = os.path.dirname(os.path.abspath(__file__))
+        for _ in range(5):
+            candidate = os.path.join(base, "SelfUtil", "selfutil_patched.exe")
+            if os.path.exists(candidate):
+                return candidate
+            # Also check bin/Debug output
+            candidate2 = os.path.join(base, "PS5 BACKPORK KITCHEN", "bin",
+                                       "Debug", "net8.0-windows", "SelfUtil",
+                                       "selfutil_patched.exe")
+            if os.path.exists(candidate2):
+                return candidate2
+            parent = os.path.dirname(base)
+            if parent == base:
+                break
+            base = parent
+        return None
+
     def step_resign(self, files: list[str]):
         if not self.args.resign:
             return
         _header("Step 5: Re-signing")
-        selfutil = self.args.selfutil
-        if not selfutil or not os.path.exists(selfutil):
-            _log("[WARN] --selfutil not found — skipping re-signing", YELLOW)
+        selfutil = self._find_selfutil(self.args.selfutil)
+        if not selfutil:
+            _log("[WARN] selfutil_patched.exe not found — skipping re-signing", YELLOW)
+            _log("       Download from: https://github.com/CyB1K/SelfUtil-Patched", DIM)
+            _log("       Place in SelfUtil/ folder next to the application.", DIM)
             return
-        import subprocess
+        _log("[SIGN] Using selfutil: {}".format(selfutil), DIM)
         for fpath in files:
             fname = os.path.basename(fpath)
             try:
