@@ -124,71 +124,128 @@ def _header(title):
 # VersionProfiles from VB.NET project define pairs:
 #   (ps5_sdk_bytes_current, ps5_sdk_bytes_target)
 
-def _patch_sdk_version_in_file(file_path: str, fw_from: str, fw_to: str) -> bool:
-    """Patch PS5/PS4 SDK version bytes in a binary file (ELF/SELF/PRX).
-    Returns True if any bytes were patched.
+# Target firmware SDK constants — used to write into PT_SCE_PROCPARAM
+# Format: (ps5_sdk_uint32, ps4_sdk_uint32) stored little-endian in file
+FW_SDK_MAP: dict[str, tuple[int, int]] = {
+    "1.00":  (0x01000001, 0x05508001),
+    "1.05":  (0x01050001, 0x05508001),
+    "2.00":  (0x02000001, 0x06508001),
+    "2.20":  (0x02200001, 0x06508001),
+    "2.50":  (0x02500001, 0x06508001),
+    "3.00":  (0x03000001, 0x07508001),
+    "3.20":  (0x03200001, 0x07508001),
+    "4.00":  (0x04000001, 0x08508001),
+    "4.50":  (0x04500001, 0x08508001),
+    "5.00":  (0x05000001, 0x08508001),
+    "5.02":  (0x05020001, 0x08508001),
+    "5.10":  (0x05100001, 0x08508001),
+    "5.25":  (0x05250001, 0x08508001),
+    "6.00":  (0x06000001, 0x09508001),
+    "6.02":  (0x06020001, 0x09508001),
+    "6.50":  (0x06500001, 0x09508001),
+    "7.00":  (0x07000001, 0x09508001),
+    "7.01":  (0x07010001, 0x09508001),
+    "7.55":  (0x07550001, 0x09508001),
+    "7.61":  (0x07610001, 0x09508001),
+    "8.00":  (0x08000001, 0x09508001),
+    "8.52":  (0x08520001, 0x09508001),
+    "9.00":  (0x09000001, 0x09508001),
+    "9.60":  (0x09600001, 0x09508001),
+    "10.00": (0x0A000040, 0x12090001),
+    "10.01": (0x0A010040, 0x12090001),
+    "10.50": (0x0A500040, 0x12090001),
+    "11.00": (0x0B000040, 0x12090001),
+}
+
+# Offset of PS4 SDK field within PT_SCE_PROCPARAM segment
+_PROCPARAM_PS4_OFF = 0x08
+# Offset of PS5 SDK field within PT_SCE_PROCPARAM segment
+_PROCPARAM_PS5_OFF = 0x14
+
+PT_SCE_PROCPARAM = 0x61000001
+
+
+def _find_procparam_offsets(data: bytes) -> list[tuple[int, int]]:
+    """Find PT_SCE_PROCPARAM segments in an ELF and return their file offsets.
+    Returns list of (ps4_sdk_file_offset, ps5_sdk_file_offset).
+    Works with both 64-bit ELFs (PS5 uses 64-bit x86_64).
     """
-    # Map firmware version string to known SDK uint32 constants
-    # Extend this table with real values from VersionProfiles.vb
-    FW_SDK_MAP: dict[str, tuple[int, int]] = {
-        # fw_string: (ps5_sdk_uint32, ps4_sdk_uint32)  — little-endian in file
-        "1.00":  (0x01000001, 0x05508001),
-        "1.05":  (0x01050001, 0x05508001),
-        "2.00":  (0x02000001, 0x06508001),
-        "2.20":  (0x02200001, 0x06508001),
-        "2.50":  (0x02500001, 0x06508001),
-        "3.00":  (0x03000001, 0x07508001),
-        "3.20":  (0x03200001, 0x07508001),
-        "4.00":  (0x04000001, 0x08508001),
-        "4.50":  (0x04500001, 0x08508001),
-        "5.00":  (0x05000001, 0x08508001),
-        "5.02":  (0x05020001, 0x08508001),
-        "5.10":  (0x05100001, 0x08508001),
-        "5.25":  (0x05250001, 0x08508001),
-        "6.00":  (0x06000001, 0x09508001),
-        "6.02":  (0x06020001, 0x09508001),
-        "6.50":  (0x06500001, 0x09508001),
-        "7.00":  (0x07000001, 0x09508001),
-        "7.01":  (0x07010001, 0x09508001),
-        "7.55":  (0x07550001, 0x09508001),
-        "7.61":  (0x07610001, 0x09508001),
-        "8.00":  (0x08000001, 0x09508001),
-        "8.52":  (0x08520001, 0x09508001),
-        "9.00":  (0x09000001, 0x09508001),
-        "9.60":  (0x09600001, 0x09508001),
-        "10.00": (0x0A000040, 0x12090001),
-        "10.01": (0x0A010040, 0x12090001),
-        "10.50": (0x0A500040, 0x12090001),
-        "11.00": (0x0B000040, 0x12090001),
-    }
+    if len(data) < 0x40 or data[:4] != b'\x7fELF':
+        return []
 
-    if fw_from not in FW_SDK_MAP or fw_to not in FW_SDK_MAP:
-        return False
+    ei_class = data[4]
+    if ei_class != 2:  # only 64-bit
+        return []
 
-    ps5_from, ps4_from = FW_SDK_MAP[fw_from]
-    ps5_to,   ps4_to   = FW_SDK_MAP[fw_to]
+    e_phoff = struct.unpack_from("<Q", data, 0x20)[0]
+    e_phentsize = struct.unpack_from("<H", data, 0x36)[0]
+    e_phnum = struct.unpack_from("<H", data, 0x38)[0]
+
+    results = []
+    for i in range(e_phnum):
+        off = e_phoff + i * e_phentsize
+        if off + e_phentsize > len(data):
+            break
+        p_type = struct.unpack_from("<I", data, off)[0]
+        if p_type == PT_SCE_PROCPARAM:
+            p_offset = struct.unpack_from("<Q", data, off + 0x08)[0]
+            p_filesz = struct.unpack_from("<Q", data, off + 0x20)[0]
+            if p_filesz >= 0x18 and p_offset + p_filesz <= len(data):
+                ps4_off = p_offset + _PROCPARAM_PS4_OFF
+                ps5_off = p_offset + _PROCPARAM_PS5_OFF
+                results.append((ps4_off, ps5_off))
+    return results
+
+
+def _patch_sdk_version_in_file(file_path: str, fw_to: str) -> tuple[bool, str]:
+    """Patch PS5/PS4 SDK version bytes directly in PT_SCE_PROCPARAM.
+    Instead of searching the whole file for byte patterns, this reads
+    the actual SDK values from the known PROCPARAM offsets and overwrites
+    them with the target firmware values.
+    Returns (patched: bool, detail: str).
+    """
+    if fw_to not in FW_SDK_MAP:
+        return False, "unknown target FW '{}'".format(fw_to)
+
+    ps5_target, ps4_target = FW_SDK_MAP[fw_to]
 
     with open(file_path, "rb") as f:
         data = bytearray(f.read())
 
+    offsets = _find_procparam_offsets(bytes(data))
+    if not offsets:
+        return False, "no PT_SCE_PROCPARAM found"
+
     patched = False
-    for old_val, new_val in [(ps5_from, ps5_to), (ps4_from, ps4_to)]:
-        old_bytes = struct.pack("<I", old_val)
-        new_bytes = struct.pack("<I", new_val)
-        pos = 0
-        while True:
-            idx = data.find(old_bytes, pos)
-            if idx < 0:
-                break
-            data[idx:idx + 4] = new_bytes
+    details = []
+    for ps4_off, ps5_off in offsets:
+        ps4_cur = struct.unpack_from("<I", data, ps4_off)[0]
+        ps5_cur = struct.unpack_from("<I", data, ps5_off)[0]
+
+        changed = False
+        if ps5_cur != ps5_target and ps5_cur != 0:
+            old_str = "{}.{}.{}.{}".format(
+                (ps5_cur >> 24) & 0xFF, (ps5_cur >> 16) & 0xFF,
+                (ps5_cur >> 8) & 0xFF, ps5_cur & 0xFF)
+            new_str = "{}.{}.{}.{}".format(
+                (ps5_target >> 24) & 0xFF, (ps5_target >> 16) & 0xFF,
+                (ps5_target >> 8) & 0xFF, ps5_target & 0xFF)
+            struct.pack_into("<I", data, ps5_off, ps5_target)
+            details.append("PS5 {} -> {}".format(old_str, new_str))
+            changed = True
+
+        if ps4_cur != ps4_target and ps4_cur != 0:
+            struct.pack_into("<I", data, ps4_off, ps4_target)
+            changed = True
+
+        if changed:
             patched = True
-            pos = idx + 4
 
     if patched:
         with open(file_path, "wb") as f:
             f.write(data)
 
-    return patched
+    return patched, "; ".join(details) if details else "already at target version"
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +326,11 @@ class BackportPipeline:
             except Exception as ex:
                 _log("  [DECRYPT] {} — error: {}".format(fname, ex), YELLOW)
 
-        _log("  Decrypted {}/{} SELF files".format(len(mapping), len(files)), CYAN)
+        if len(mapping) == 0:
+            _log("  All {} files are already plain ELF — no decryption needed".format(
+                len(files)), GREEN)
+        else:
+            _log("  Decrypted {}/{} SELF files".format(len(mapping), len(files)), CYAN)
         return mapping
 
     # ---- Step 1: ELF Analysis ------------------------------------------
@@ -437,19 +498,26 @@ class BackportPipeline:
     # ---- Step 4: SDK Version Patch -------------------------------------
 
     def step_sdk_patch(self, files: list[str]):
-        _header("Step 4: SDK Version Patch")
+        _header("Step 4: SDK Version Patch ({} -> {})".format(
+            self.args.fw_current, self.args.fw_target))
+        n_patched = 0
+        n_skipped = 0
         for fpath in files:
             fname = os.path.basename(fpath)
             try:
-                patched = _patch_sdk_version_in_file(
-                    fpath, self.args.fw_current, self.args.fw_target)
+                patched, detail = _patch_sdk_version_in_file(
+                    fpath, self.args.fw_target)
                 if patched:
                     self.results["step_sdk_patch"]["patched"].append(fname)
-                    _log("  [SDK] {} — patched".format(fname), GREEN)
+                    _log("  [SDK] {} — {}".format(fname, detail), GREEN)
+                    n_patched += 1
                 else:
                     self.results["step_sdk_patch"]["skipped"].append(fname)
+                    n_skipped += 1
             except Exception as ex:
                 _log("  [WARN] SDK patch failed for {}: {}".format(fname, ex), YELLOW)
+        _log("  --- SDK patched: {}, skipped: {} (no PROCPARAM or already target)".format(
+            n_patched, n_skipped), CYAN)
 
     # ---- Step 5: Re-signing (placeholder) ------------------------------
 
@@ -476,22 +544,46 @@ class BackportPipeline:
             base = parent
         return None
 
-    def step_resign(self, files: list[str]):
+    def step_resign(self, files: list[str],
+                    decrypt_map: dict[str, str] | None = None):
         if not self.args.resign:
             return
         _header("Step 5: Re-signing")
+
+        from elf_analyzer import is_self_file
+
         selfutil = self._find_selfutil(self.args.selfutil)
         if not selfutil:
             _log("[WARN] selfutil_patched.exe not found — skipping re-signing", YELLOW)
             _log("       Download from: https://github.com/CyB1K/SelfUtil-Patched", DIM)
             _log("       Place in SelfUtil/ folder next to the application.", DIM)
             return
+
+        if decrypt_map is None:
+            decrypt_map = {}
+
         _log("[SIGN] Using selfutil: {}".format(selfutil), DIM)
+        n_signed = 0
+        n_plain = 0
         for fpath in files:
             fname = os.path.basename(fpath)
+
+            # Only re-sign files that are (or were) SELF containers.
+            # Plain ELF files (already decrypted / DUPLEX dumps) don't need
+            # selfutil and will crash it with "vector subscript out of range".
+            with open(fpath, "rb") as f:
+                magic = f.read(4)
+            was_self = fpath in decrypt_map  # was originally SELF, decrypted by us
+            is_self_now = is_self_file(magic)
+
+            if not is_self_now and not was_self:
+                n_plain += 1
+                _log("  [SIGN] {} — skipped (plain ELF, no SELF signing needed)".format(
+                    fname), DIM)
+                continue
+
             try:
                 # selfutil uses --input/--output flags (not --resign)
-                # --overwrite allows replacing the file in-place
                 proc = subprocess.run(
                     [selfutil, "--verbose", "--overwrite",
                      "--input", fpath, "--output", fpath],
@@ -499,15 +591,22 @@ class BackportPipeline:
                 if proc.returncode == 0:
                     self.results["step_resign"]["resigned"].append(fname)
                     _log("  [SIGN] {} — OK".format(fname), GREEN)
+                    n_signed += 1
                 else:
                     err = (proc.stderr or proc.stdout or "unknown")[:200].strip()
                     _log("  [SIGN] {} — FAILED: {}".format(fname, err), RED)
                     self.results["step_resign"]["errors"].append(
                         {"file": fname, "error": err})
+            except subprocess.TimeoutExpired:
+                _log("  [SIGN] {} — timeout (selfutil took too long)".format(fname), RED)
+                self.results["step_resign"]["errors"].append(
+                    {"file": fname, "error": "timeout"})
             except Exception as ex:
                 _log("  [SIGN] {} — error: {}".format(fname, ex), RED)
                 self.results["step_resign"]["errors"].append(
                     {"file": fname, "error": str(ex)})
+
+        _log("  --- Signed: {}, plain ELF (skipped): {}".format(n_signed, n_plain), CYAN)
 
     # ---- Run -----------------------------------------------------------
 
@@ -542,7 +641,7 @@ class BackportPipeline:
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
         self.step_sdk_patch(files)
-        self.step_resign(files)
+        self.step_resign(files, decrypt_map)
 
         # Cleanup temp decrypted files
         temp_dir = os.path.join(self._work_folder, "_abp_temp_elf")
