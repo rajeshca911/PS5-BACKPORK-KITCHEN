@@ -1,3 +1,6 @@
+Option Strict On
+Option Explicit On
+
 Imports System.Drawing
 Imports System.IO
 Imports System.Net
@@ -177,7 +180,7 @@ Public Class AdvancedBackportForm
             .Location = New Point(460, 90)
         }
 
-        For Each ctrl As Control In {
+        For Each ctrl As Control In New Control() {
             lblGameFolder, txtGameFolder, btnBrowseFolder,
             lblFwCurrent, cmbFwCurrent, lblFwTarget, cmbFwTarget,
             chkApplyBps, chkStubMissing, chkResign
@@ -358,8 +361,8 @@ Public Class AdvancedBackportForm
 
         _cts = New CancellationTokenSource()
 
-        Dim scriptPath As String = ScriptPath("advanced_backport.py")
-        If scriptPath Is Nothing Then
+        Dim pyScript As String = ScriptPath("advanced_backport.py")
+        If pyScript Is Nothing Then
             AppendLog("[ERROR] advanced_backport.py not found in scripts/ folder.", Color.Red)
             AppendLog("       Make sure the scripts/ directory is next to the application.", Color.Orange)
             SetRunningState(False)
@@ -376,16 +379,13 @@ Public Class AdvancedBackportForm
         argsBuilder.Append("--no-color")
 
         Dim pipelineArgs As String = argsBuilder.ToString()
-        Dim pipelineOut As Action(Of String) = Sub(line) SafeAppendLog(line)
-        Dim pipelineErr As Action(Of String) = Sub(line) SafeAppendLog(line, Color.Orange)
+        Dim pipelineOut As Action(Of String) = Sub(line As String) SafeAppendLog(line)
+        Dim pipelineErr As Action(Of String) = Sub(line As String) SafeAppendLog(line, Color.Orange)
         Dim pipelineCt As CancellationToken = _cts.Token
 
-        ' Task.Run(Sub()...) returns a non-generic Task — no Task(Of Integer) anywhere
-        ' in the await chain, so VB.NET Option-Strict-Off cannot inject Conversions.ToInteger.
-        ' RunSync is fully synchronous and drives the process via OutputDataReceived events.
         Dim runCode As Integer = 0
         Await Task.Run(Sub()
-                           runCode = PythonRunner.RunSync(scriptPath, pipelineArgs,
+                           runCode = PythonRunner.RunSync(pyScript, pipelineArgs,
                                                           pipelineOut, pipelineErr, pipelineCt)
                        End Sub)
 
