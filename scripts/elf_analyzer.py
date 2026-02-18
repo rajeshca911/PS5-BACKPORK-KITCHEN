@@ -49,11 +49,44 @@ def extract_elf_from_self(data: bytes) -> bytes:
 
     SELF files wrap a standard ELF with a proprietary header.
     We scan for the ELF magic (\\x7FELF) and return from that offset.
+    Note: segment data in SELF containers is typically encrypted, so
+    pyelftools can only parse the ELF/program headers, not segment data.
     """
     idx = data.find(ELF_MAGIC)
     if idx < 0:
         raise ELFAnalyzerError("No embedded ELF found in SELF file")
     return data[idx:]
+
+
+def get_self_info(data: bytes) -> dict:
+    """Parse basic SELF header info without decryption.
+    Returns dict with version, num_entries, file_size, etc.
+    """
+    if len(data) < 28:
+        return {}
+    magic = data[:4]
+    version = data[4]
+    mode = data[5]
+    endian = data[6]
+    attribs = data[7]
+    key_type = struct.unpack_from("<I", data, 8)[0]
+    header_size = struct.unpack_from("<H", data, 12)[0]
+    meta_size = struct.unpack_from("<H", data, 14)[0]
+    file_size = struct.unpack_from("<Q", data, 16)[0]
+    num_entries = struct.unpack_from("<H", data, 24)[0]
+    flags = struct.unpack_from("<H", data, 26)[0]
+    return {
+        "magic": magic.hex(),
+        "version": version,
+        "mode": mode,
+        "endian": "LE" if endian == 1 else "BE",
+        "key_type": key_type,
+        "header_size": header_size,
+        "meta_size": meta_size,
+        "file_size": file_size,
+        "num_entries": num_entries,
+        "flags": flags,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -93,22 +126,39 @@ class ELFAnalyzer:
         self._is_self = is_self_file(self._data)
 
         if self._is_self:
-            # SELF container: extract the embedded ELF for pyelftools
+            # SELF container: extract the embedded ELF for pyelftools.
             elf_data = extract_elf_from_self(self._data)
             self._elf = ELFFile(io.BytesIO(elf_data))
         else:
             self._elf = ELFFile(io.BytesIO(self._data))
+
+    # ---- Internal helpers --------------------------------------------------
+
+    def _iter_segments_safe(self):
+        """Iterate over ELF segments, skipping any that cause errors
+        (common in SELF containers where some segments point beyond the
+        extracted data)."""
+        for i in range(self._elf.num_segments()):
+            try:
+                yield self._elf.get_segment(i)
+            except Exception:
+                continue
 
     # ---- Public API --------------------------------------------------------
 
     def get_required_libs(self) -> list[str]:
         """Return list of DT_NEEDED library names from DYNAMIC segment."""
         libs = []
-        for seg in self._elf.iter_segments():
-            if seg.header.p_type == "PT_DYNAMIC":
-                for tag in seg.iter_tags():
-                    if tag.entry.d_tag == "DT_NEEDED":
-                        libs.append(tag.needed)
+        for seg in self._iter_segments_safe():
+            try:
+                if seg.header.p_type == "PT_DYNAMIC":
+                    for tag in seg.iter_tags():
+                        if tag.entry.d_tag == "DT_NEEDED":
+                            name = tag.needed
+                            if name:
+                                libs.append(name)
+            except Exception:
+                continue
         return libs
 
     def get_imported_symbols(self) -> list[dict]:
@@ -117,26 +167,30 @@ class ELFAnalyzer:
         """
         symbols = {}
 
-        # Collect undefined symbols from .dynsym
-        dynsym = self._elf.get_section_by_name(".dynsym")
-        if dynsym and isinstance(dynsym, SymbolTableSection):
-            for sym in dynsym.iter_symbols():
-                if (sym.name and sym.entry.st_shndx == "SHN_UNDEF"
-                        and sym.entry.st_info.type in ("STT_FUNC", "STT_NOTYPE", "STT_OBJECT")):
-                    symbols[sym.name] = {
-                        "name": sym.name,
-                        "nid": calc_nid(sym.name),
-                        "plt_offset": None,
-                    }
+        try:
+            # Collect undefined symbols from .dynsym
+            dynsym = self._elf.get_section_by_name(".dynsym")
+            if dynsym and isinstance(dynsym, SymbolTableSection):
+                for sym in dynsym.iter_symbols():
+                    if (sym.name and sym.entry.st_shndx == "SHN_UNDEF"
+                            and sym.entry.st_info.type in
+                            ("STT_FUNC", "STT_NOTYPE", "STT_OBJECT")):
+                        symbols[sym.name] = {
+                            "name": sym.name,
+                            "nid": calc_nid(sym.name),
+                            "plt_offset": None,
+                        }
 
-        # Enrich with PLT offsets from .rela.plt
-        rela_plt = self._elf.get_section_by_name(".rela.plt")
-        if rela_plt and dynsym:
-            for rel in rela_plt.iter_relocations():
-                sym_idx = rel["r_info_sym"]
-                sym = dynsym.get_symbol(sym_idx)
-                if sym and sym.name in symbols:
-                    symbols[sym.name]["plt_offset"] = rel["r_offset"]
+            # Enrich with PLT offsets from .rela.plt
+            rela_plt = self._elf.get_section_by_name(".rela.plt")
+            if rela_plt and dynsym:
+                for rel in rela_plt.iter_relocations():
+                    sym_idx = rel["r_info_sym"]
+                    sym = dynsym.get_symbol(sym_idx)
+                    if sym and sym.name in symbols:
+                        symbols[sym.name]["plt_offset"] = rel["r_offset"]
+        except Exception:
+            pass
 
         return list(symbols.values())
 
@@ -165,7 +219,7 @@ class ELFAnalyzer:
         Returns {"ps5_sdk": int, "ps4_sdk": int, "ps5_sdk_str": str, "ps4_sdk_str": str}
         """
         import struct
-        for seg in self._elf.iter_segments():
+        for seg in self._iter_segments_safe():
             if seg.header.p_type == self.PT_SCE_PROCPARAM:
                 raw = seg.data()
                 if len(raw) >= 0x18:
@@ -224,8 +278,10 @@ class ELFAnalyzer:
         total = len(imported)
         score = int((len(found_symbols) / total) * 100) if total else 100
 
-        return {
+        report = {
             "elf": os.path.basename(self.elf_path),
+            "is_self": self._is_self,
+            "file_size": len(self._data),
             "sdk_ps5": sdk_info["ps5_sdk_str"],
             "sdk_ps4": sdk_info["ps4_sdk_str"],
             "target_fw": target_fw,
@@ -236,6 +292,11 @@ class ELFAnalyzer:
             "missing_symbols": missing_symbols,
             "compatibility_score": score,
         }
+        if self._is_self:
+            report["self_info"] = get_self_info(self._data)
+            if total == 0:
+                report["note"] = "SELF encrypted — full analysis needs selfutil decryption"
+        return report
 
 
 # ---------------------------------------------------------------------------

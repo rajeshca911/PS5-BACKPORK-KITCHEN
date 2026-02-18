@@ -245,10 +245,20 @@ class BackportPipeline:
                     self.args.fw_target, self.args.exports_dir)
                 fname = os.path.basename(fpath)
                 self.results["step_analysis"][fname] = report
-                score = report["compatibility_score"]
-                color = GREEN if score >= 90 else (YELLOW if score >= 70 else RED)
-                _log("  {} — score: {}%  missing: {}".format(
-                    fname, score, len(report["missing_symbols"])), color)
+
+                ftype = "SELF" if report.get("is_self") else "ELF"
+                size_kb = report.get("file_size", 0) // 1024
+                libs = report.get("required_libs", [])
+                missing = report.get("missing_symbols", [])
+                note = report.get("note", "")
+
+                if note:
+                    _log("  {} [{}] {}KB — {}".format(fname, ftype, size_kb, note), CYAN)
+                else:
+                    score = report["compatibility_score"]
+                    color = GREEN if score >= 90 else (YELLOW if score >= 70 else RED)
+                    _log("  {} [{}] {}KB — libs:{} score:{}% missing:{}".format(
+                        fname, ftype, size_kb, len(libs), score, len(missing)), color)
             except Exception as ex:
                 _log("  [WARN] Could not analyze {}: {}".format(
                     os.path.basename(fpath), ex), YELLOW)
@@ -424,8 +434,47 @@ class BackportPipeline:
         self.step_sdk_patch(files)
         self.step_resign(files)
 
+        # Package modified files into a ZIP for easy deployment
+        zip_path = self.create_output_zip(files)
+        if zip_path:
+            self.results["zip_path"] = zip_path
+
         self.results["total_time_s"] = round(time.time() - t0, 2)
         return self.results
+
+    def create_output_zip(self, files: list[str]):
+        """Package all modified files into a ZIP for easy deployment."""
+        import zipfile
+        import datetime
+
+        modified = (
+            self.results["step_bps"]["applied"]
+            + self.results["step_sdk_patch"]["patched"]
+            + [s["name"] if isinstance(s, dict) else s
+               for s in self.results["step_stub"]["stubbed"]]
+            + self.results["step_resign"]["resigned"]
+        )
+        if not modified:
+            _log("[ZIP] No files were modified — skipping ZIP creation.", YELLOW)
+            return None
+
+        game_name = os.path.basename(self.args.game_folder.rstrip("/\\"))
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_name = "backport_{}_{}_to_{}_{}.zip".format(
+            game_name, self.args.fw_current, self.args.fw_target, ts)
+        zip_path = os.path.join(
+            self.args.output_folder or self.args.game_folder, zip_name)
+
+        modified_set = set(modified)
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for fpath in files:
+                fname = os.path.basename(fpath)
+                if fname in modified_set:
+                    arcname = os.path.relpath(fpath, self.args.game_folder)
+                    zf.write(fpath, arcname)
+
+        _log("[ZIP] Created: {} ({} files)".format(zip_path, len(modified_set)), GREEN)
+        return zip_path
 
     def print_summary(self):
         r = self.results
@@ -438,6 +487,8 @@ class BackportPipeline:
         _log("  SDK patched:      {}".format(len(r["step_sdk_patch"]["patched"])))
         _log("  Re-signed:        {}".format(len(r["step_resign"]["resigned"])))
         _log("  Total time:       {}s".format(r["total_time_s"]))
+        if r.get("zip_path"):
+            _log("  Output ZIP:       {}".format(r["zip_path"]), GREEN)
         if r["errors"]:
             _log("  Errors:", RED)
             for e in r["errors"]:
