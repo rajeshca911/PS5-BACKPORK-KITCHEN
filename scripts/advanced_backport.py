@@ -276,7 +276,7 @@ class BackportPipeline:
 
     def step_analysis(self, files: list[str],
                       decrypt_map: dict[str, str] | None = None):
-        _header("Step 1: ELF Analysis")
+        _header("Step 1: ELF / PRX Analysis")
         try:
             ELFAnalyzer, ELFAnalyzerError = _import_elf()
         except ImportError:
@@ -285,6 +285,10 @@ class BackportPipeline:
 
         if decrypt_map is None:
             decrypt_map = {}
+
+        total_imports = 0
+        total_libs = 0
+        total_plt = 0
 
         for fpath in files:
             fname = os.path.basename(fpath)
@@ -296,23 +300,33 @@ class BackportPipeline:
                     self.args.fw_target, self.args.exports_dir)
                 self.results["step_analysis"][fname] = report
 
-                ftype = "SELF" if report.get("is_self") else "ELF"
+                elf_type = report.get("elf_type", "")
+                is_sce = report.get("is_sce", False)
                 size_kb = report.get("file_size", 0) // 1024
+                code_kb = report.get("code_size", 0) // 1024
                 libs = report.get("required_libs", [])
+                n_imp = report.get("total_imported", 0)
+                n_exp = report.get("total_exported", 0)
+                n_plt = report.get("plt_entries", 0)
                 missing = report.get("missing_symbols", [])
                 note = report.get("note", "")
 
+                total_imports += n_imp
+                total_libs += len(libs)
+                total_plt += n_plt
+
                 if note:
-                    _log("  {} [{}] {}KB — {}".format(fname, ftype, size_kb, note), CYAN)
+                    _log("  {} [{}] {}KB — {}".format(fname, elf_type, size_kb, note), CYAN)
                 else:
-                    score = report["compatibility_score"]
-                    n_libs = len(libs)
-                    n_miss = len(missing)
-                    color = GREEN if score >= 90 else (YELLOW if score >= 70 else RED)
-                    _log("  {} [{}] {}KB — libs:{} score:{}% missing:{}".format(
-                        fname, ftype, size_kb, n_libs, score, n_miss), color)
+                    tag = "SCE" if is_sce else "ELF"
+                    _log("  {} [{}] {}KB code:{}KB libs:{} imports:{} PLT:{} exports:{}".format(
+                        fname, tag, size_kb, code_kb, len(libs), n_imp, n_plt, n_exp),
+                        GREEN if n_imp > 0 else CYAN)
             except Exception as ex:
                 _log("  [WARN] Could not analyze {}: {}".format(fname, ex), YELLOW)
+
+        _log("  --- Total: {} imports, {} libs, {} PLT entries across {} files".format(
+            total_imports, total_libs, total_plt, len(files)), CYAN)
 
     # ---- Step 2: BPS Patching ------------------------------------------
 
@@ -355,7 +369,7 @@ class BackportPipeline:
                   decrypt_map: dict[str, str] | None = None):
         if not self.args.stub_missing:
             return
-        _header("Step 3: Auto-Stubbing (ARM64)")
+        _header("Step 3: PLT Stub Patching (x86_64 / ARM64)")
         try:
             AutoStubber, AutoStubberError = _import_stubber()
         except ImportError:
@@ -365,33 +379,52 @@ class BackportPipeline:
         if decrypt_map is None:
             decrypt_map = {}
 
+        total_analyzed = 0
+        total_stubbed = 0
+        total_notfound = 0
+
         for fpath in files:
             fname = os.path.basename(fpath)
             analysis = self.results["step_analysis"].get(fname, {})
             missing = analysis.get("missing_symbols", [])
-            if not missing:
-                continue
+            n_imp = analysis.get("total_imported", 0)
+            n_plt = analysis.get("plt_entries", 0)
 
-            # Use decrypted ELF for stubbing if available (SELF is encrypted)
+            # Use decrypted ELF for stubbing if available
             stub_path = decrypt_map.get(fpath, fpath)
+
             try:
                 stubber = AutoStubber(stub_path)
-                res = stubber.stub_missing(missing, mode="ret_zero")
-                if res["stubbed"]:
-                    stubber.save(stub_path)
-                    # If we stubbed a decrypted copy, merge changes back
-                    # into the original file by replacing ELF content
-                    if stub_path != fpath:
-                        self._merge_stub_back(fpath, stub_path)
-                    self.results["step_stub"]["stubbed"].extend(res["stubbed"])
-                self.results["step_stub"]["not_found"].extend(res["not_found"])
-                _log("  {} — stubbed: {} / not_found: {}".format(
-                    fname, len(res["stubbed"]), len(res["not_found"])),
-                    GREEN if res["stubbed"] else YELLOW)
+                info = stubber.get_info()
+                arch = info["arch"]
+
+                if missing:
+                    res = stubber.stub_missing(missing, mode="ret_zero")
+                    n_stub = len(res["stubbed"])
+                    n_nf = len(res["not_found"])
+                    if n_stub > 0:
+                        stubber.save(stub_path)
+                        if stub_path != fpath:
+                            self._merge_stub_back(fpath, stub_path)
+                        self.results["step_stub"]["stubbed"].extend(res["stubbed"])
+                    self.results["step_stub"]["not_found"].extend(res["not_found"])
+                    total_stubbed += n_stub
+                    total_notfound += n_nf
+                    _log("  {} [{}] PLT:{} — stubbed:{} not_found:{}".format(
+                        fname, arch, n_plt, n_stub, n_nf),
+                        GREEN if n_stub else YELLOW)
+                else:
+                    _log("  {} [{}] PLT:{} imports:{} — no missing symbols".format(
+                        fname, arch, n_plt, n_imp), DIM)
+
+                total_analyzed += 1
             except Exception as ex:
                 _log("  [ERR] {} — {}".format(fname, ex), RED)
                 self.results["step_stub"]["errors"].append(
                     {"file": fname, "error": str(ex)})
+
+        _log("  --- Analyzed:{} stubbed:{} not_found:{}".format(
+            total_analyzed, total_stubbed, total_notfound), CYAN)
 
     @staticmethod
     def _merge_stub_back(original_self: str, patched_elf: str):
@@ -561,11 +594,23 @@ class BackportPipeline:
     def print_summary(self):
         r = self.results
         _header("Final Summary")
-        _log("  Files found:      {}".format(len(r["files_found"])))
+        _log("  Files scanned:    {}".format(len(r["files_found"])))
+
+        # Analysis totals
+        total_libs = 0
+        total_imports = 0
+        total_plt = 0
+        for fname, report in r["step_analysis"].items():
+            total_libs += len(report.get("required_libs", []))
+            total_imports += report.get("total_imported", 0)
+            total_plt += report.get("plt_entries", 0)
+        if total_imports:
+            _log("  Libraries found:  {}".format(total_libs))
+            _log("  Imports resolved: {}".format(total_imports))
+            _log("  PLT entries:      {}".format(total_plt))
+
         _log("  BPS applied:      {}".format(len(r["step_bps"]["applied"])))
-        _log("  BPS skipped:      {}".format(len(r["step_bps"]["skipped"])))
-        _log("  BPS errors:       {}".format(len(r["step_bps"]["errors"])))
-        _log("  Symbols stubbed:  {}".format(len(r["step_stub"]["stubbed"])))
+        _log("  PLT stubs:        {}".format(len(r["step_stub"]["stubbed"])))
         _log("  SDK patched:      {}".format(len(r["step_sdk_patch"]["patched"])))
         _log("  Re-signed:        {}".format(len(r["step_resign"]["resigned"])))
         _log("  Total time:       {}s".format(r["total_time_s"]))
