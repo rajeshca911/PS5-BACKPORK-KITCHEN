@@ -26,9 +26,37 @@ import json
 import os
 import shutil
 import struct
+import subprocess
 import sys
 import time
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Auto-install missing dependencies
+# ---------------------------------------------------------------------------
+
+def _ensure_deps():
+    """Install pyelftools and capstone if not already available."""
+    missing = []
+    try:
+        import elftools  # noqa: F401
+    except ImportError:
+        missing.append("pyelftools")
+    try:
+        import capstone  # noqa: F401
+    except ImportError:
+        missing.append("capstone")
+    if missing:
+        print("[ABP] Installing missing dependencies: {}".format(", ".join(missing)))
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--quiet"] + missing,
+            stdout=subprocess.DEVNULL,
+        )
+        print("[ABP] Dependencies installed.")
+
+
+_ensure_deps()
 
 
 # ---------------------------------------------------------------------------
