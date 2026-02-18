@@ -228,9 +228,54 @@ class BackportPipeline:
         _log("[ABP] Found {} target files".format(len(files)), CYAN)
         return files
 
+    # ---- Step 0.5: SELF Decryption ------------------------------------
+
+    def step_decrypt_self(self, files: list[str]) -> dict[str, str]:
+        """Decrypt SELF files using selfutil so analysis / stubbing can work.
+        Returns a mapping {original_path: decrypted_elf_path}.
+        Decrypted files are placed in a temp subfolder.
+        """
+        selfutil = self._find_selfutil(self.args.selfutil)
+        if not selfutil:
+            return {}
+
+        from elf_analyzer import is_self_file
+        _header("Step 0: SELF Decryption (for analysis)")
+
+        temp_dir = os.path.join(self._work_folder, "_abp_temp_elf")
+        os.makedirs(temp_dir, exist_ok=True)
+        mapping = {}
+
+        for fpath in files:
+            with open(fpath, "rb") as f:
+                magic = f.read(4)
+            if not is_self_file(magic):
+                continue  # already plain ELF
+
+            fname = os.path.basename(fpath)
+            elf_out = os.path.join(temp_dir, fname + ".elf")
+            try:
+                proc = subprocess.run(
+                    [selfutil, "--verbose", "--overwrite",
+                     "--input", fpath, "--output", elf_out],
+                    capture_output=True, text=True, timeout=120)
+                if proc.returncode == 0 and os.path.exists(elf_out) and \
+                        os.path.getsize(elf_out) > 0:
+                    mapping[fpath] = elf_out
+                    _log("  [DECRYPT] {} — OK".format(fname), GREEN)
+                else:
+                    err = proc.stderr[:200].strip() if proc.stderr else "unknown"
+                    _log("  [DECRYPT] {} — FAILED: {}".format(fname, err), YELLOW)
+            except Exception as ex:
+                _log("  [DECRYPT] {} — error: {}".format(fname, ex), YELLOW)
+
+        _log("  Decrypted {}/{} SELF files".format(len(mapping), len(files)), CYAN)
+        return mapping
+
     # ---- Step 1: ELF Analysis ------------------------------------------
 
-    def step_analysis(self, files: list[str]):
+    def step_analysis(self, files: list[str],
+                      decrypt_map: dict[str, str] | None = None):
         _header("Step 1: ELF Analysis")
         try:
             ELFAnalyzer, ELFAnalyzerError = _import_elf()
@@ -238,12 +283,17 @@ class BackportPipeline:
             _log("[WARN] pyelftools not installed — skipping analysis", YELLOW)
             return
 
+        if decrypt_map is None:
+            decrypt_map = {}
+
         for fpath in files:
+            fname = os.path.basename(fpath)
+            # Use decrypted ELF for analysis if available
+            analyze_path = decrypt_map.get(fpath, fpath)
             try:
-                analyzer = ELFAnalyzer(fpath)
+                analyzer = ELFAnalyzer(analyze_path)
                 report = analyzer.generate_report(
                     self.args.fw_target, self.args.exports_dir)
-                fname = os.path.basename(fpath)
                 self.results["step_analysis"][fname] = report
 
                 ftype = "SELF" if report.get("is_self") else "ELF"
@@ -256,12 +306,13 @@ class BackportPipeline:
                     _log("  {} [{}] {}KB — {}".format(fname, ftype, size_kb, note), CYAN)
                 else:
                     score = report["compatibility_score"]
+                    n_libs = len(libs)
+                    n_miss = len(missing)
                     color = GREEN if score >= 90 else (YELLOW if score >= 70 else RED)
                     _log("  {} [{}] {}KB — libs:{} score:{}% missing:{}".format(
-                        fname, ftype, size_kb, len(libs), score, len(missing)), color)
+                        fname, ftype, size_kb, n_libs, score, n_miss), color)
             except Exception as ex:
-                _log("  [WARN] Could not analyze {}: {}".format(
-                    os.path.basename(fpath), ex), YELLOW)
+                _log("  [WARN] Could not analyze {}: {}".format(fname, ex), YELLOW)
 
     # ---- Step 2: BPS Patching ------------------------------------------
 
@@ -300,15 +351,19 @@ class BackportPipeline:
 
     # ---- Step 3: Auto-Stubbing -----------------------------------------
 
-    def step_stub(self, files: list[str]):
+    def step_stub(self, files: list[str],
+                  decrypt_map: dict[str, str] | None = None):
         if not self.args.stub_missing:
             return
-        _header("Step 3: Auto-Stubbing")
+        _header("Step 3: Auto-Stubbing (ARM64)")
         try:
             AutoStubber, AutoStubberError = _import_stubber()
         except ImportError:
-            _log("[WARN] capstone/keystone not installed — skipping stub step", YELLOW)
+            _log("[WARN] capstone not installed — skipping stub step", YELLOW)
             return
+
+        if decrypt_map is None:
+            decrypt_map = {}
 
         for fpath in files:
             fname = os.path.basename(fpath)
@@ -316,11 +371,18 @@ class BackportPipeline:
             missing = analysis.get("missing_symbols", [])
             if not missing:
                 continue
+
+            # Use decrypted ELF for stubbing if available (SELF is encrypted)
+            stub_path = decrypt_map.get(fpath, fpath)
             try:
-                stubber = AutoStubber(fpath)
+                stubber = AutoStubber(stub_path)
                 res = stubber.stub_missing(missing, mode="ret_zero")
                 if res["stubbed"]:
-                    stubber.save(fpath)
+                    stubber.save(stub_path)
+                    # If we stubbed a decrypted copy, merge changes back
+                    # into the original file by replacing ELF content
+                    if stub_path != fpath:
+                        self._merge_stub_back(fpath, stub_path)
                     self.results["step_stub"]["stubbed"].extend(res["stubbed"])
                 self.results["step_stub"]["not_found"].extend(res["not_found"])
                 _log("  {} — stubbed: {} / not_found: {}".format(
@@ -330,6 +392,14 @@ class BackportPipeline:
                 _log("  [ERR] {} — {}".format(fname, ex), RED)
                 self.results["step_stub"]["errors"].append(
                     {"file": fname, "error": str(ex)})
+
+    @staticmethod
+    def _merge_stub_back(original_self: str, patched_elf: str):
+        """After stubbing a decrypted ELF, replace the original file.
+        selfutil --resign will re-sign later, so we replace the original
+        with the patched decrypted ELF (it needs re-signing anyway).
+        """
+        shutil.copy2(patched_elf, original_self)
 
     # ---- Step 4: SDK Version Patch -------------------------------------
 
@@ -387,16 +457,20 @@ class BackportPipeline:
         for fpath in files:
             fname = os.path.basename(fpath)
             try:
+                # selfutil uses --input/--output flags (not --resign)
+                # --overwrite allows replacing the file in-place
                 proc = subprocess.run(
-                    [selfutil, "--resign", fpath],
-                    capture_output=True, text=True, timeout=60)
+                    [selfutil, "--verbose", "--overwrite",
+                     "--input", fpath, "--output", fpath],
+                    capture_output=True, text=True, timeout=120)
                 if proc.returncode == 0:
                     self.results["step_resign"]["resigned"].append(fname)
                     _log("  [SIGN] {} — OK".format(fname), GREEN)
                 else:
-                    _log("  [SIGN] {} — FAILED: {}".format(fname, proc.stderr[:200]), RED)
+                    err = (proc.stderr or proc.stdout or "unknown")[:200].strip()
+                    _log("  [SIGN] {} — FAILED: {}".format(fname, err), RED)
                     self.results["step_resign"]["errors"].append(
-                        {"file": fname, "error": proc.stderr[:200]})
+                        {"file": fname, "error": err})
             except Exception as ex:
                 _log("  [SIGN] {} — error: {}".format(fname, ex), RED)
                 self.results["step_resign"]["errors"].append(
@@ -428,11 +502,19 @@ class BackportPipeline:
                 for f in files
             ]
 
-        self.step_analysis(files)
+        # Decrypt SELF files for analysis (if selfutil available)
+        decrypt_map = self.step_decrypt_self(files)
+
+        self.step_analysis(files, decrypt_map)
         self.step_bps(files)
-        self.step_stub(files)
+        self.step_stub(files, decrypt_map)
         self.step_sdk_patch(files)
         self.step_resign(files)
+
+        # Cleanup temp decrypted files
+        temp_dir = os.path.join(self._work_folder, "_abp_temp_elf")
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
         # Package modified files into a ZIP for easy deployment
         zip_path = self.create_output_zip(files)
