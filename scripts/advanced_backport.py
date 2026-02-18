@@ -280,6 +280,7 @@ class BackportPipeline:
             "step_bps":      {"applied": [], "skipped": [], "errors": []},
             "step_stub":     {"stubbed": [], "not_found": [], "errors": []},
             "step_sdk_patch": {"patched": [], "skipped": []},
+            "step_param":    {"patched": []},
             "step_resign":   {"resigned": [], "errors": []},
             "errors":        [],
             "total_time_s":  0.0,
@@ -537,6 +538,108 @@ class BackportPipeline:
         _log("  --- SDK patched: {}, already at target: {}, no param: {}".format(
             n_patched, n_already, n_skipped), CYAN)
 
+    # ---- Step 4b: Patch param.json / param.sfo --------------------------
+
+    def step_patch_param(self):
+        """Patch requiredSystemSoftwareVersion and sdkVersion in param.json
+        (PS5 format) so the console accepts the backported game.
+        Also patches param.sfo SYSTEM_VER if present.
+        """
+        _header("Step 4b: Param Metadata Patch")
+
+        fw_to = self.args.fw_target
+        if fw_to not in FW_SDK_MAP:
+            _log("  [PARAM] Unknown target FW '{}' — skipping".format(fw_to), YELLOW)
+            return
+
+        # Build the 64-bit hex string used in param.json
+        # Format: "0x0MMNN000000000000" where MM=major, NN=minor
+        parts = fw_to.split(".")
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        param_hex = "0x{:02X}{:02X}000000000000".format(major, minor)
+
+        patched_any = False
+
+        # Search for param.json
+        for root, _dirs, fnames in os.walk(self.args.game_folder):
+            for fname in fnames:
+                fpath = os.path.join(root, fname)
+
+                if fname == "param.json":
+                    try:
+                        with open(fpath, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        original = content
+
+                        # Replace requiredSystemSoftwareVersion
+                        import re
+                        content = re.sub(
+                            r'("requiredSystemSoftwareVersion"\s*:\s*)"0x[0-9A-Fa-f]+"',
+                            r'\1"{}"'.format(param_hex),
+                            content)
+                        # Replace sdkVersion
+                        content = re.sub(
+                            r'("sdkVersion"\s*:\s*)"0x[0-9A-Fa-f]+"',
+                            r'\1"{}"'.format(param_hex),
+                            content)
+
+                        if content != original:
+                            with open(fpath, "w", encoding="utf-8") as f:
+                                f.write(content)
+                            _log("  [PARAM] {} — patched to {}".format(fname, param_hex), GREEN)
+                            self.results["step_param"]["patched"].append(fname)
+                            patched_any = True
+                        else:
+                            _log("  [PARAM] {} — already at target".format(fname), DIM)
+                    except Exception as ex:
+                        _log("  [PARAM] {} — error: {}".format(fname, ex), RED)
+
+                elif fname == "param.sfo":
+                    try:
+                        with open(fpath, "rb") as f:
+                            sfo_data = bytearray(f.read())
+
+                        # SFO SYSTEM_VER is a uint32 stored as: 0xMMNN0000
+                        target_sysver = (major << 24) | (minor << 16)
+                        target_bytes = struct.pack("<I", target_sysver)
+
+                        # Search for SYSTEM_VER key in SFO
+                        key_pos = sfo_data.find(b"SYSTEM_VER\x00")
+                        if key_pos >= 0:
+                            # SFO format: keys table points to values table
+                            # Simple approach: find the 4-byte value near the key
+                            # SFO values are in a separate section, but we can
+                            # search for any uint32 that looks like a system version
+                            # (0x0?000000 pattern) near the end of the file
+                            changed = False
+                            # Look for version pattern in data section (last half of file)
+                            half = len(sfo_data) // 2
+                            for i in range(half, len(sfo_data) - 3):
+                                val = struct.unpack_from("<I", sfo_data, i)[0]
+                                if val != 0 and (val & 0x0000FFFF) == 0 and \
+                                        ((val >> 24) & 0xFF) <= 0x10:
+                                    # Looks like a system version (major.minor.0.0)
+                                    if val != target_sysver:
+                                        struct.pack_into("<I", sfo_data, i, target_sysver)
+                                        changed = True
+                                        break
+                            if changed:
+                                with open(fpath, "wb") as f:
+                                    f.write(sfo_data)
+                                _log("  [PARAM] {} — SYSTEM_VER patched".format(fname), GREEN)
+                                patched_any = True
+                            else:
+                                _log("  [PARAM] {} — already at target or not found".format(
+                                    fname), DIM)
+                        else:
+                            _log("  [PARAM] {} — no SYSTEM_VER key found".format(fname), DIM)
+                    except Exception as ex:
+                        _log("  [PARAM] {} — error: {}".format(fname, ex), RED)
+
+        if not patched_any:
+            _log("  No param.json or param.sfo found to patch", YELLOW)
+
     # ---- Step 5: Re-signing (placeholder) ------------------------------
 
     @staticmethod
@@ -659,6 +762,7 @@ class BackportPipeline:
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
         self.step_sdk_patch(files)
+        self.step_patch_param()
         self.step_resign(files, decrypt_map)
 
         # Cleanup temp decrypted files
@@ -686,7 +790,9 @@ class BackportPipeline:
                for s in self.results["step_stub"]["stubbed"]]
             + self.results["step_resign"]["resigned"]
         )
-        if not modified:
+        param_patched = self.results["step_param"]["patched"]
+
+        if not modified and not param_patched:
             _log("[ZIP] No files were modified — skipping ZIP creation.", YELLOW)
             return None
 
@@ -698,14 +804,25 @@ class BackportPipeline:
             self.args.output_folder or self.args.game_folder, zip_name)
 
         modified_set = set(modified)
+        n_zipped = 0
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for fpath in files:
                 fname = os.path.basename(fpath)
                 if fname in modified_set:
                     arcname = os.path.relpath(fpath, self.args.game_folder)
                     zf.write(fpath, arcname)
+                    n_zipped += 1
+            # Also include patched param.json/param.sfo
+            if param_patched:
+                for root, _dirs, fnames in os.walk(self.args.game_folder):
+                    for fname in fnames:
+                        if fname in param_patched:
+                            fpath = os.path.join(root, fname)
+                            arcname = os.path.relpath(fpath, self.args.game_folder)
+                            zf.write(fpath, arcname)
+                            n_zipped += 1
 
-        _log("[ZIP] Created: {} ({} files)".format(zip_path, len(modified_set)), GREEN)
+        _log("[ZIP] Created: {} ({} files)".format(zip_path, n_zipped), GREEN)
         return zip_path
 
     def print_summary(self):
@@ -729,6 +846,7 @@ class BackportPipeline:
         _log("  BPS applied:      {}".format(len(r["step_bps"]["applied"])))
         _log("  PLT stubs:        {}".format(len(r["step_stub"]["stubbed"])))
         _log("  SDK patched:      {}".format(len(r["step_sdk_patch"]["patched"])))
+        _log("  Param patched:    {}".format(len(r["step_param"]["patched"])))
         _log("  Re-signed:        {}".format(len(r["step_resign"]["resigned"])))
         _log("  Total time:       {}s".format(r["total_time_s"]))
         if r.get("zip_path"):
