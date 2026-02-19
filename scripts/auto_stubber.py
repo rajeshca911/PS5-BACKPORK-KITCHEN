@@ -359,6 +359,90 @@ class AutoStubber:
             (stubbed if ok else not_found).append(name)
         return {"stubbed": stubbed, "not_found": not_found}
 
+    def stub_missing_smart(self, missing_symbols: list[dict],
+                           dry_run: bool = False) -> dict:
+        """Smart stub: choose stub mode per-function based on NID DB classification.
+
+        Each symbol in missing_symbols can have:
+          - "name": NID-encoded symbol name (required)
+          - "resolved_name": human-readable name (from NID DB)
+          - "stub_risk": risk level from NID DB
+          - "stub_mode": recommended stub mode from NID DB
+
+        Returns {
+            "stubbed": [{"name", "resolved_name", "mode", "risk"}, ...],
+            "skipped_critical": [{"name", "resolved_name", "risk"}, ...],
+            "not_found": [{"name", "resolved_name"}, ...],
+        }
+        """
+        try:
+            from ps5_nid_db import PS5NidDB, STUB_SKIP, STUB_NOP, STUB_RET_ZERO, STUB_RET_ERROR
+            from ps5_nid_db import RISK_CRITICAL, RISK_HIGH
+            nid_db = PS5NidDB()
+            has_nid_db = True
+        except ImportError:
+            has_nid_db = False
+
+        stubbed = []
+        skipped_critical = []
+        not_found = []
+
+        for sym in missing_symbols:
+            name = sym.get("name", "")
+            if not name:
+                continue
+
+            resolved = sym.get("resolved_name")
+            risk = sym.get("stub_risk", "medium")
+            mode = sym.get("stub_mode", "ret_zero")
+
+            # If no classification from caller, try NID DB ourselves
+            if has_nid_db and not resolved:
+                nid_part = name.split("#")[0] if "#" in name else name
+                resolved = nid_db.resolve_nid(nid_part)
+                if resolved:
+                    info = nid_db.classify_function(resolved)
+                    risk = info.get("stub_risk", "medium")
+                    mode = info.get("stub_mode", "ret_zero")
+                else:
+                    # Try heuristic on NID-encoded name (won't match well)
+                    # Keep defaults
+                    pass
+
+            # Map NID DB stub modes to our stub mode names
+            if mode == "skip":
+                skipped_critical.append({
+                    "name": name,
+                    "resolved_name": resolved,
+                    "risk": risk,
+                })
+                continue
+
+            # Map mode names
+            stub_mode = mode
+            if stub_mode not in self._stub_modes:
+                stub_mode = "ret_zero"  # safe fallback
+
+            ok = self.stub_plt_entry(name, mode=stub_mode, dry_run=dry_run)
+            if ok:
+                stubbed.append({
+                    "name": name,
+                    "resolved_name": resolved,
+                    "mode": stub_mode,
+                    "risk": risk,
+                })
+            else:
+                not_found.append({
+                    "name": name,
+                    "resolved_name": resolved,
+                })
+
+        return {
+            "stubbed": stubbed,
+            "skipped_critical": skipped_critical,
+            "not_found": not_found,
+        }
+
     # ---- GOT Patching (alternative to PLT stubbing) -------------------------
 
     def patch_got_entry(self, symbol_name: str, target_va: int,

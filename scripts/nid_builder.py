@@ -138,6 +138,101 @@ class NIDBuilder:
             data = json.load(f)
         return data.get(lib, {})
 
+    def bootstrap_from_game(self, game_folder: str, fw_version: str,
+                            progress_cb=None) -> dict:
+        """Extract exports from .sprx/.prx files bundled within a game folder.
+        Enriches the exports DB for the given firmware version.
+
+        Each game analyzed makes the DB more complete for future analysis.
+
+        Returns summary: {"libs_scanned", "new_symbols", "total_symbols", "output"}
+        """
+        output_path = os.path.join(self.exports_dir, "{}.json".format(fw_version))
+
+        # Load existing DB for this firmware
+        existing = {}
+        if os.path.exists(output_path):
+            with open(output_path, encoding="utf-8") as f:
+                existing = json.load(f)
+
+        extensions = (".sprx", ".prx", ".so")
+        libs_scanned = 0
+        new_symbols = 0
+        total_symbols = 0
+
+        # Walk game folder recursively for library files
+        for root, _dirs, fnames in os.walk(game_folder):
+            for fname in sorted(fnames):
+                if not fname.lower().endswith(extensions):
+                    continue
+                fpath = os.path.join(root, fname)
+                if progress_cb:
+                    progress_cb("[BOOTSTRAP] Scanning {} ...".format(fname))
+
+                # Try raw PS5 parser first (handles stripped ELFs)
+                syms = self._extract_exports_raw(fpath)
+
+                # Fallback to pyelftools if raw parser didn't find exports
+                if not syms:
+                    syms = self._extract_exports_from_elf(fpath)
+
+                if syms:
+                    if fname not in existing:
+                        existing[fname] = {}
+                    before = len(existing[fname])
+                    existing[fname].update(syms)
+                    new_symbols += len(existing[fname]) - before
+                    total_symbols += len(existing[fname])
+                    libs_scanned += 1
+
+        # Write updated DB
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2, sort_keys=True)
+
+        return {
+            "libs_scanned": libs_scanned,
+            "new_symbols": new_symbols,
+            "total_symbols": total_symbols,
+            "output": output_path,
+        }
+
+    def _extract_exports_raw(self, elf_path: str) -> dict[str, str]:
+        """Extract exports using the raw PS5 ELF parser (no section headers needed).
+        Returns {symbol_name: nid} for exported symbols.
+        """
+        try:
+            with open(elf_path, "rb") as f:
+                data = f.read()
+
+            if len(data) < 64 or data[:4] != b'\x7fELF':
+                # Try to extract ELF from SELF container
+                from elf_analyzer import is_self_file, extract_elf_from_self
+                if is_self_file(data):
+                    try:
+                        data = extract_elf_from_self(data)
+                    except Exception:
+                        return {}
+                else:
+                    return {}
+
+            from elf_analyzer import PS5ELFParser
+            parser = PS5ELFParser(data)
+            exports = parser.get_exported_symbols()
+
+            result = {}
+            for sym in exports:
+                name = sym.get("name", "")
+                if name and "#" not in name:
+                    # Plain symbol name
+                    result[name] = calc_nid(name)
+                elif name and "#" in name:
+                    # NID-encoded: extract the NID part
+                    nid_part = name.split("#")[0]
+                    result[name] = nid_part
+            return result
+        except Exception:
+            return {}
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -183,6 +278,19 @@ def cmd_query(args):
     print("\n  Total: {}".format(len(syms)))
 
 
+def cmd_bootstrap(args):
+    try:
+        builder = NIDBuilder(args.exports_dir)
+    except NIDBuilderError as e:
+        print("[ERROR] {}".format(e), file=sys.stderr)
+        sys.exit(1)
+
+    result = builder.bootstrap_from_game(args.game_folder, args.fw, progress_cb=print)
+    print("\n[BOOTSTRAP] Done — scanned {} libs, {} new symbols, {} total -> {}".format(
+        result["libs_scanned"], result["new_symbols"],
+        result["total_symbols"], result["output"]))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="NID Builder — build PS5 symbol exports DB from firmware libs")
@@ -203,5 +311,14 @@ if __name__ == "__main__":
     p_query.add_argument("--lib", required=True)
     p_query.add_argument("--exports-dir", default="data/exports")
 
+    p_bootstrap = sub.add_parser("bootstrap",
+        help="Extract exports from game libs to enrich the DB")
+    p_bootstrap.add_argument("--game-folder", required=True,
+        help="Path to game folder with .sprx/.prx files")
+    p_bootstrap.add_argument("--fw", required=True,
+        help="Firmware version the game was compiled for")
+    p_bootstrap.add_argument("--exports-dir", default="data/exports")
+
     parsed = parser.parse_args()
-    {"build": cmd_build, "merge": cmd_merge, "query": cmd_query}[parsed.cmd](parsed)
+    {"build": cmd_build, "merge": cmd_merge, "query": cmd_query,
+     "bootstrap": cmd_bootstrap}[parsed.cmd](parsed)

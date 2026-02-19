@@ -84,6 +84,13 @@ def _import_stubber():
     return AutoStubber, AutoStubberError
 
 
+def _import_lib_compat():
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, script_dir)
+    from lib_compat import LibCompatAnalyzer
+    return LibCompatAnalyzer
+
+
 # ---------------------------------------------------------------------------
 # ANSI helpers
 # ---------------------------------------------------------------------------
@@ -97,6 +104,9 @@ CYAN   = "\033[96m"
 DIM    = "\033[2m"
 
 _COLOR = sys.stdout.isatty()
+
+# Risk level ordering for comparison
+_RISK_ORDER = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
 
 
 def _c(text, color):
@@ -277,8 +287,10 @@ class BackportPipeline:
             "fw_target":     args.fw_target,
             "files_found":   [],
             "step_analysis": {},
+            "step_lib_compat": {},
             "step_bps":      {"applied": [], "skipped": [], "errors": []},
-            "step_stub":     {"stubbed": [], "not_found": [], "errors": []},
+            "step_stub":     {"stubbed": [], "skipped_critical": [],
+                              "not_found": [], "errors": []},
             "step_sdk_patch": {"patched": [], "skipped": []},
             "step_param":    {"patched": []},
             "step_resign":   {"resigned": [], "errors": []},
@@ -394,14 +406,106 @@ class BackportPipeline:
                     _log("  {} [{}] {}KB — {}".format(fname, elf_type, size_kb, note), CYAN)
                 else:
                     tag = "SCE" if is_sce else "ELF"
-                    _log("  {} [{}] {}KB code:{}KB libs:{} imports:{} PLT:{} exports:{}".format(
-                        fname, tag, size_kb, code_kb, len(libs), n_imp, n_plt, n_exp),
+                    # Show NID DB info when available
+                    src = report.get("analysis_source", "none")
+                    nid_info = ""
+                    if src == "nid_db":
+                        nr = report.get("nid_resolved", 0)
+                        nm = report.get("nid_missing", 0)
+                        nu = report.get("nid_unresolved", 0)
+                        risk = report.get("risk_level", "NONE")
+                        nid_info = " | NID resolved:{} missing:{} unresolved:{} risk:{}".format(
+                            nr, nm, nu, risk)
+                    _log("  {} [{}] {}KB code:{}KB libs:{} imports:{} PLT:{} exports:{}{}".format(
+                        fname, tag, size_kb, code_kb, len(libs), n_imp, n_plt, n_exp,
+                        nid_info),
                         GREEN if n_imp > 0 else CYAN)
             except Exception as ex:
                 _log("  [WARN] Could not analyze {}: {}".format(fname, ex), YELLOW)
 
         _log("  --- Total: {} imports, {} libs, {} PLT entries across {} files".format(
             total_imports, total_libs, total_plt, len(files)), CYAN)
+
+    # ---- Step 1b: Library Compatibility --------------------------------
+
+    def step_lib_compat(self, files: list[str]):
+        """Analyze library compatibility using fakelibs.json and NID DB."""
+        _header("Step 1b: Library Compatibility Analysis")
+        try:
+            LibCompatAnalyzer = _import_lib_compat()
+        except ImportError:
+            _log("  [WARN] lib_compat not available — skipping", YELLOW)
+            return
+
+        # Find fakelibs.json — check project root and script dir
+        fakelibs_path = None
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        for candidate in [
+            os.path.join(os.path.dirname(script_dir), "fakelibs.json"),
+            os.path.join(script_dir, "fakelibs.json"),
+            os.path.join(self.args.game_folder, "fakelibs.json"),
+        ]:
+            if os.path.exists(candidate):
+                fakelibs_path = candidate
+                break
+
+        if not fakelibs_path:
+            _log("  [WARN] fakelibs.json not found — skipping lib compat", YELLOW)
+            return
+
+        analyzer = LibCompatAnalyzer(fakelibs_path)
+
+        # Gather all required libs from analysis results
+        all_libs = set()
+        for fname, report in self.results["step_analysis"].items():
+            for lib in report.get("required_libs", []):
+                all_libs.add(lib)
+
+        if not all_libs:
+            _log("  No library dependencies detected", DIM)
+            return
+
+        # Merge all analysis reports for missing symbol context
+        merged_report = {"missing_symbols": []}
+        for fname, report in self.results["step_analysis"].items():
+            merged_report["missing_symbols"].extend(
+                report.get("missing_symbols", []))
+
+        result = analyzer.analyze(sorted(all_libs), self.args.fw_target,
+                                  merged_report)
+        self.results["step_lib_compat"] = result
+
+        # Print results
+        for lr in result.get("lib_results", []):
+            lib = lr["lib"]
+            risk = lr.get("risk", "NONE")
+            has_fl = lr.get("has_fakelib", False)
+            fl_tag = " [FAKELIB]" if has_fl else ""
+            color = GREEN if risk == "NONE" else (
+                YELLOW if risk in ("LOW", "MEDIUM") else RED)
+            _log("  {} — risk:{}{} {}".format(
+                lib, risk, fl_tag, lr.get("description", "")), color)
+
+        # Print recommendations
+        recs = result.get("recommendations", [])
+        if recs:
+            _log("\n  Recommendations:", BOLD)
+            for rec in recs:
+                action = rec["action"]
+                icon = {"use_fakelib": "+", "fakelib_needed": "!!",
+                        "stub_risky": "!", "stub_functions": "~"}.get(action, "?")
+                color = GREEN if action == "use_fakelib" else (
+                    RED if "needed" in action or "risky" in action else YELLOW)
+                _log("    [{}] {} — {}".format(icon, rec["lib"], rec["detail"]), color)
+
+        also = result.get("also_recommend", [])
+        if also:
+            _log("\n  Also recommended fakelibs: {}".format(", ".join(also)), CYAN)
+
+        score = result.get("compatibility_score", 100)
+        risk = result.get("risk_level", "NONE")
+        color = GREEN if score >= 80 else (YELLOW if score >= 50 else RED)
+        _log("  --- Lib compat score: {}% — risk: {}".format(score, risk), color)
 
     # ---- Step 2: BPS Patching ------------------------------------------
 
@@ -456,6 +560,7 @@ class BackportPipeline:
 
         total_analyzed = 0
         total_stubbed = 0
+        total_skipped = 0
         total_notfound = 0
 
         for fpath in files:
@@ -474,20 +579,57 @@ class BackportPipeline:
                 arch = info["arch"]
 
                 if missing:
-                    res = stubber.stub_missing(missing, mode="ret_zero")
-                    n_stub = len(res["stubbed"])
-                    n_nf = len(res["not_found"])
-                    if n_stub > 0:
-                        stubber.save(stub_path)
-                        if stub_path != fpath:
-                            self._merge_stub_back(fpath, stub_path)
-                        self.results["step_stub"]["stubbed"].extend(res["stubbed"])
-                    self.results["step_stub"]["not_found"].extend(res["not_found"])
-                    total_stubbed += n_stub
-                    total_notfound += n_nf
-                    _log("  {} [{}] PLT:{} — stubbed:{} not_found:{}".format(
-                        fname, arch, n_plt, n_stub, n_nf),
-                        GREEN if n_stub else YELLOW)
+                    # Use smart stubbing (per-function mode) when available
+                    has_smart = hasattr(stubber, 'stub_missing_smart')
+                    if has_smart:
+                        res = stubber.stub_missing_smart(missing)
+                        n_stub = len(res["stubbed"])
+                        n_skip = len(res.get("skipped_critical", []))
+                        n_nf = len(res["not_found"])
+                        if n_stub > 0:
+                            stubber.save(stub_path)
+                            if stub_path != fpath:
+                                self._merge_stub_back(fpath, stub_path)
+                            self.results["step_stub"]["stubbed"].extend(res["stubbed"])
+                        self.results["step_stub"]["skipped_critical"].extend(
+                            res.get("skipped_critical", []))
+                        self.results["step_stub"]["not_found"].extend(res["not_found"])
+                        total_stubbed += n_stub
+                        total_skipped += n_skip
+                        total_notfound += n_nf
+
+                        # Log per-function modes
+                        modes_used = {}
+                        for s in res["stubbed"]:
+                            m = s.get("mode", "ret_zero") if isinstance(s, dict) else "ret_zero"
+                            modes_used[m] = modes_used.get(m, 0) + 1
+                        mode_str = " ".join("{}:{}".format(k, v) for k, v in modes_used.items())
+                        skip_str = " CRITICAL_SKIP:{}".format(n_skip) if n_skip else ""
+                        _log("  {} [{}] PLT:{} — stubbed:{} ({}) not_found:{}{}".format(
+                            fname, arch, n_plt, n_stub, mode_str, n_nf, skip_str),
+                            GREEN if n_stub else YELLOW)
+
+                        # Warn about critical skips
+                        for skip in res.get("skipped_critical", []):
+                            rname = skip.get("resolved_name", skip.get("name", "?"))
+                            _log("    [!!] CRITICAL SKIP: {} — cannot stub safely".format(
+                                rname), RED)
+                    else:
+                        # Fallback to old uniform stub mode
+                        res = stubber.stub_missing(missing, mode="ret_zero")
+                        n_stub = len(res["stubbed"])
+                        n_nf = len(res["not_found"])
+                        if n_stub > 0:
+                            stubber.save(stub_path)
+                            if stub_path != fpath:
+                                self._merge_stub_back(fpath, stub_path)
+                            self.results["step_stub"]["stubbed"].extend(res["stubbed"])
+                        self.results["step_stub"]["not_found"].extend(res["not_found"])
+                        total_stubbed += n_stub
+                        total_notfound += n_nf
+                        _log("  {} [{}] PLT:{} — stubbed:{} not_found:{}".format(
+                            fname, arch, n_plt, n_stub, n_nf),
+                            GREEN if n_stub else YELLOW)
                 else:
                     _log("  {} [{}] PLT:{} imports:{} — no missing symbols".format(
                         fname, arch, n_plt, n_imp), DIM)
@@ -498,8 +640,8 @@ class BackportPipeline:
                 self.results["step_stub"]["errors"].append(
                     {"file": fname, "error": str(ex)})
 
-        _log("  --- Analyzed:{} stubbed:{} not_found:{}".format(
-            total_analyzed, total_stubbed, total_notfound), CYAN)
+        _log("  --- Analyzed:{} stubbed:{} skipped_critical:{} not_found:{}".format(
+            total_analyzed, total_stubbed, total_skipped, total_notfound), CYAN)
 
     @staticmethod
     def _merge_stub_back(original_self: str, patched_elf: str):
@@ -756,6 +898,7 @@ class BackportPipeline:
         decrypt_map = self.step_decrypt_self(files)
 
         self.step_analysis(files, decrypt_map)
+        self.step_lib_compat(files)
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
         self.step_sdk_patch(files, decrypt_map)
@@ -831,25 +974,93 @@ class BackportPipeline:
         total_libs = 0
         total_imports = 0
         total_plt = 0
+        total_nid_resolved = 0
+        total_nid_missing = 0
+        total_nid_unresolved = 0
+        worst_risk = "NONE"
         for fname, report in r["step_analysis"].items():
             total_libs += len(report.get("required_libs", []))
             total_imports += report.get("total_imported", 0)
             total_plt += report.get("plt_entries", 0)
+            total_nid_resolved += report.get("nid_resolved", 0)
+            total_nid_missing += report.get("nid_missing", 0)
+            total_nid_unresolved += report.get("nid_unresolved", 0)
+            file_risk = report.get("risk_level", "NONE")
+            if _RISK_ORDER.get(file_risk, 0) > _RISK_ORDER.get(worst_risk, 0):
+                worst_risk = file_risk
+
         if total_imports:
             _log("  Libraries found:  {}".format(total_libs))
-            _log("  Imports resolved: {}".format(total_imports))
+            _log("  Imports total:    {}".format(total_imports))
             _log("  PLT entries:      {}".format(total_plt))
 
+        # NID DB analysis results
+        if total_nid_resolved or total_nid_missing:
+            _log("  NID resolved:     {}".format(total_nid_resolved), GREEN)
+            if total_nid_missing:
+                _log("  NID missing:      {}".format(total_nid_missing), RED)
+            if total_nid_unresolved:
+                _log("  NID unresolved:   {}".format(total_nid_unresolved), YELLOW)
+
+        # Lib compat summary
+        lib_compat = r.get("step_lib_compat", {})
+        if lib_compat:
+            lc_score = lib_compat.get("compatibility_score", 100)
+            lc_risk = lib_compat.get("risk_level", "NONE")
+            fakelibs_avail = lib_compat.get("fakelibs_available", [])
+            _log("  Lib compat:       {}% risk:{}".format(lc_score, lc_risk),
+                 GREEN if lc_score >= 80 else (YELLOW if lc_score >= 50 else RED))
+            if fakelibs_avail:
+                _log("  Fakelibs avail:   {}".format(", ".join(fakelibs_avail[:5])), CYAN)
+
         _log("  BPS applied:      {}".format(len(r["step_bps"]["applied"])))
-        _log("  PLT stubs:        {}".format(len(r["step_stub"]["stubbed"])))
+
+        # Smart stub summary
+        n_stubbed = len(r["step_stub"]["stubbed"])
+        n_critical = len(r["step_stub"].get("skipped_critical", []))
+        _log("  PLT stubs:        {}".format(n_stubbed))
+        if n_critical:
+            _log("  CRITICAL skipped: {}".format(n_critical), RED)
+
         _log("  SDK patched:      {}".format(len(r["step_sdk_patch"]["patched"])))
         _log("  Param patched:    {}".format(len(r["step_param"]["patched"])))
         _log("  Re-signed:        {}".format(len(r["step_resign"]["resigned"])))
         _log("  Total time:       {}s".format(r["total_time_s"]))
         if r.get("zip_path"):
             _log("  Output ZIP:       {}".format(r["zip_path"]), GREEN)
+
+        # Critical function warnings
+        critical_skips = r["step_stub"].get("skipped_critical", [])
+        if critical_skips:
+            _log("\n  [!!] Critical functions that could NOT be stubbed:", RED)
+            for skip in critical_skips[:10]:
+                rname = skip.get("resolved_name") or skip.get("name", "?")
+                _log("       {} (risk: {})".format(rname, skip.get("risk", "critical")), RED)
+            if len(critical_skips) > 10:
+                _log("       ... and {} more".format(len(critical_skips) - 10), RED)
+
+        # Fakelib recommendations
+        recs = lib_compat.get("recommendations", [])
+        fakelib_recs = [r for r in recs if r.get("action") == "use_fakelib"]
+        needed_recs = [r for r in recs if r.get("action") == "fakelib_needed"]
+        if fakelib_recs:
+            _log("\n  [+] Recommended fakelibs to install:", GREEN)
+            for rec in fakelib_recs:
+                _log("      {}".format(rec["lib"]), GREEN)
+        if needed_recs:
+            _log("\n  [!!] CRITICAL — fakelibs needed but not available:", RED)
+            for rec in needed_recs:
+                _log("      {} — {}".format(rec["lib"], rec["detail"]), RED)
+
+        # Overall compatibility score
+        compat_scores = [report.get("compatibility_score", 100)
+                         for report in r["step_analysis"].values()]
+        avg_score = sum(compat_scores) // len(compat_scores) if compat_scores else 100
+        color = GREEN if avg_score >= 80 else (YELLOW if avg_score >= 50 else RED)
+        _log("\n  Compatibility: {}% — Risk: {}".format(avg_score, worst_risk), color)
+
         if r["errors"]:
-            _log("  Errors:", RED)
+            _log("\n  Errors:", RED)
             for e in r["errors"]:
                 _log("    {}".format(e), RED)
 

@@ -539,9 +539,39 @@ class ELFAnalyzer:
         """Extract PS5/PS4 SDK version from PT_SCE_PROCPARAM."""
         return self._ps5.get_procparam()
 
+    def resolve_import_names(self, imports: list[dict]) -> list[dict]:
+        """Enrich imported symbols with resolved names from NID DB.
+        Each entry gets: resolved_name, category, stub_risk, stub_mode, analysis_source.
+        """
+        try:
+            from ps5_nid_db import PS5NidDB
+            nid_db = PS5NidDB()
+        except ImportError:
+            # No NID DB available — return imports unchanged
+            for sym in imports:
+                sym["resolved_name"] = None
+                sym["analysis_source"] = "none"
+            return imports
+
+        for sym in imports:
+            nid_part = sym.get("nid_encoded", "")
+            resolved_name = nid_db.resolve_nid(nid_part)
+            if resolved_name:
+                info = nid_db.classify_function(resolved_name)
+                sym["resolved_name"] = resolved_name
+                sym["category"] = info.get("category", "misc")
+                sym["stub_risk"] = info.get("stub_risk", "medium")
+                sym["stub_mode"] = info.get("stub_mode", "ret_zero")
+                sym["analysis_source"] = "nid_db"
+            else:
+                sym["resolved_name"] = None
+                sym["analysis_source"] = "none"
+        return imports
+
     def generate_report(self, target_fw: str, exports_dir: str) -> dict:
         """Analyze compatibility against a target firmware version.
         Returns full report dict.
+        Uses exports DB when available, falls back to NID DB for analysis.
         """
         db = FirmwareExportsDB(exports_dir)
 
@@ -561,6 +591,8 @@ class ELFAnalyzer:
         # Check each imported symbol against exports DB
         found_symbols = []
         missing_symbols = []
+        analysis_source = "exports_db" if has_exports_db else "none"
+
         if has_exports_db:
             for sym in imported:
                 nid_name = sym.get("nid_encoded", sym["name"])
@@ -573,13 +605,77 @@ class ELFAnalyzer:
                     ) else "warning"
                     missing_symbols.append({**sym, "severity": severity})
 
+        # NID DB fallback: when exports DB is empty, use built-in NID knowledge
+        nid_resolved = []
+        nid_missing = []
+        nid_available = False
+        if not has_exports_db:
+            try:
+                from ps5_nid_db import PS5NidDB
+                nid_db = PS5NidDB()
+                nid_available = True
+                analysis_source = "nid_db"
+
+                for sym in imported:
+                    nid_part = sym.get("nid_encoded", "")
+                    resolved_name = nid_db.resolve_nid(nid_part)
+                    if resolved_name:
+                        available = nid_db.is_function_available(resolved_name, target_fw)
+                        info = nid_db.classify_function(resolved_name)
+                        entry = {
+                            **sym,
+                            "resolved_name": resolved_name,
+                            "category": info.get("category", "misc"),
+                            "stub_risk": info.get("stub_risk", "medium"),
+                            "stub_mode": info.get("stub_mode", "ret_zero"),
+                        }
+                        if available:
+                            nid_resolved.append(entry)
+                            found_symbols.append(entry)
+                        else:
+                            min_fw = nid_db.get_function_min_fw(resolved_name)
+                            entry["min_fw"] = min_fw
+                            entry["severity"] = ("critical"
+                                if info.get("stub_risk") == "critical" else "warning")
+                            nid_missing.append(entry)
+                            missing_symbols.append(entry)
+                    else:
+                        # NID not in our DB — cannot determine availability
+                        nid_resolved.append({**sym, "resolved_name": None,
+                                             "analysis_source": "unresolved"})
+            except ImportError:
+                pass
+
         # Compatibility score
         total = len(imported)
         if has_exports_db:
             score = int((len(found_symbols) / total) * 100) if total else 100
+        elif nid_available:
+            # NID DB fallback scoring: resolved+available vs total
+            # Unresolved NIDs count as "assumed OK" (generous)
+            n_resolved_total = len(nid_resolved) + len(nid_missing)
+            if n_resolved_total > 0:
+                score = int((len(nid_resolved) / n_resolved_total) * 100)
+            else:
+                score = 100  # no symbols resolved at all — no data
         else:
-            # Without exports DB, assume compatible (no data to compare)
-            score = 100
+            score = 100  # no data at all
+
+        # Risk level based on missing symbols
+        risk_level = "NONE"
+        if missing_symbols:
+            has_critical = any(s.get("stub_risk") == "critical" or
+                              s.get("severity") == "critical"
+                              for s in missing_symbols)
+            has_high = any(s.get("stub_risk") == "high" for s in missing_symbols)
+            if has_critical:
+                risk_level = "CRITICAL"
+            elif has_high:
+                risk_level = "HIGH"
+            elif len(missing_symbols) > 10:
+                risk_level = "MEDIUM"
+            else:
+                risk_level = "LOW"
 
         # Code size from executable segments
         code_size = sum(s["size"] for s in text_segs)
@@ -602,7 +698,16 @@ class ELFAnalyzer:
             "found_symbols": len(found_symbols),
             "missing_symbols": missing_symbols,
             "compatibility_score": score,
+            "risk_level": risk_level,
+            "analysis_source": analysis_source,
         }
+
+        # NID DB enrichment data
+        if nid_available:
+            report["nid_resolved"] = len(nid_resolved)
+            report["nid_missing"] = len(nid_missing)
+            report["nid_unresolved"] = total - len(nid_resolved) - len(nid_missing)
+
         if self._is_self:
             report["self_info"] = get_self_info(self._data)
             if total == 0 and not required_libs:
