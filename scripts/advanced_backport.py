@@ -1020,8 +1020,23 @@ class BackportPipeline:
         self.step_install_fakelibs()
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
-        self.step_sdk_patch(files, decrypt_map)
-        self.step_patch_param()
+
+        # SDK and param patching are OFF by default — on jailbroken consoles
+        # the firmware check is bypassed by the exploit, so these patches are
+        # unnecessary and can actually break the game (corrupt SELF structure).
+        # BADERLINK's approach: only install fakelibs, don't touch game files.
+        if getattr(self.args, 'patch_sdk', False):
+            self.step_sdk_patch(files, decrypt_map)
+        else:
+            _header("Step 4: SDK Version Patch — SKIPPED (fakelib-only mode)")
+            _log("  Jailbroken consoles bypass FW checks. Use --patch-sdk to force.", DIM)
+
+        if getattr(self.args, 'patch_param', False):
+            self.step_patch_param()
+        else:
+            _header("Step 4b: Param Metadata Patch — SKIPPED (fakelib-only mode)")
+            _log("  Jailbroken consoles bypass FW checks. Use --patch-param to force.", DIM)
+
         self.step_resign(files, decrypt_map)
 
         # Cleanup temp decrypted files
@@ -1226,6 +1241,10 @@ if __name__ == "__main__":
                         help="Stub missing ARM64 PLT entries")
     parser.add_argument("--resign", action="store_true",
                         help="Re-sign ELFs with selfutil after patching")
+    parser.add_argument("--patch-sdk", action="store_true",
+                        help="Patch SDK version bytes in ELF files (not needed on jailbroken consoles)")
+    parser.add_argument("--patch-param", action="store_true",
+                        help="Patch param.json/param.sfo firmware version (not needed on jailbroken consoles)")
     parser.add_argument("--exports-dir", default="data/exports",
                         help="Firmware exports directory (default: data/exports)")
     parser.add_argument("--db", default="data/patch_database.json",

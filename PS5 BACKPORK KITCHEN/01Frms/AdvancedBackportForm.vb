@@ -46,6 +46,8 @@ Public Class AdvancedBackportForm
     Private chkApplyBps      As CheckBox
     Private chkStubMissing   As CheckBox
     Private chkResign        As CheckBox
+    Private chkPatchSdk      As CheckBox
+    Private chkPatchParam    As CheckBox
 
     ' Log panel
     Private rtbLog As RichTextBox
@@ -179,11 +181,24 @@ Public Class AdvancedBackportForm
             .AutoSize = True,
             .Location = New Point(460, 90)
         }
+        chkPatchSdk = New CheckBox() With {
+            .Text = "Patch SDK version",
+            .AutoSize = True,
+            .Location = New Point(10, 115),
+            .Checked = False
+        }
+        chkPatchParam = New CheckBox() With {
+            .Text = "Patch param.json",
+            .AutoSize = True,
+            .Location = New Point(190, 115),
+            .Checked = False
+        }
 
         For Each ctrl As Control In New Control() {
             lblGameFolder, txtGameFolder, btnBrowseFolder,
             lblFwCurrent, cmbFwCurrent, lblFwTarget, cmbFwTarget,
-            chkApplyBps, chkStubMissing, chkResign
+            chkApplyBps, chkStubMissing, chkResign,
+            chkPatchSdk, chkPatchParam
         }
             grpConfig.Controls.Add(ctrl)
         Next
@@ -376,6 +391,8 @@ Public Class AdvancedBackportForm
         If chkApplyBps.Checked Then argsBuilder.Append("--apply-bps ")
         If chkStubMissing.Checked Then argsBuilder.Append("--stub-missing ")
         If chkResign.Checked Then argsBuilder.Append("--resign ")
+        If chkPatchSdk.Checked Then argsBuilder.Append("--patch-sdk ")
+        If chkPatchParam.Checked Then argsBuilder.Append("--patch-param ")
         argsBuilder.Append("--no-color")
 
         Dim pipelineArgs As String = argsBuilder.ToString()
