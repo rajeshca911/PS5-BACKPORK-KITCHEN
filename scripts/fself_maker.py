@@ -116,10 +116,10 @@ class _ElfPhdr:
         (self.p_type, self.p_flags, self.p_offset,
          self.p_vaddr, self.p_paddr,
          self.p_filesz, self.p_memsz,
-         self.p_align) = struct.unpack_from("<II QQQQQ", data, offset)
+         self.p_align) = struct.unpack_from("<IIQQQQQQ", data, offset)
 
     def to_bytes(self):
-        return struct.pack("<II QQQQQ",
+        return struct.pack("<IIQQQQQQ",
                            self.p_type, self.p_flags, self.p_offset,
                            self.p_vaddr, self.p_paddr,
                            self.p_filesz, self.p_memsz, self.p_align)
