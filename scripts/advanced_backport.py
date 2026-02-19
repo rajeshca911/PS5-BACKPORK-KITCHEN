@@ -288,6 +288,7 @@ class BackportPipeline:
             "files_found":   [],
             "step_analysis": {},
             "step_lib_compat": {},
+            "step_fakelibs": {"installed": [], "source": None},
             "step_bps":      {"applied": [], "skipped": [], "errors": []},
             "step_stub":     {"stubbed": [], "skipped_critical": [],
                               "not_found": [], "errors": []},
@@ -518,6 +519,111 @@ class BackportPipeline:
         risk = result.get("risk_level", "NONE")
         color = GREEN if score >= 80 else (YELLOW if score >= 50 else RED)
         _log("  --- Lib compat score: {}% — risk: {}".format(score, risk), color)
+
+    # ---- Step 1c: Fakelib Installation ----------------------------------
+
+    def step_install_fakelibs(self):
+        """Install firmware-specific fakelib .sprx files into the game folder.
+
+        Fakelibs are the primary backporting mechanism: they replace system
+        libraries whose API changed between firmware versions (mainly AGC/GPU).
+
+        Searches for fakelib files in:
+          1. Numbered folders (4/, 5/, 6/, 7/) next to the app executable
+          2. fakelibs.json download locations
+        """
+        _header("Step 1c: Fakelib Installation")
+
+        fw_target = self.args.fw_target
+        fw_major = fw_target.split(".")[0]
+
+        # Find fakelib source folder
+        fakelib_src = self._find_fakelib_folder(fw_major)
+        if not fakelib_src:
+            _log("  [WARN] No fakelib folder found for FW {} — "
+                 "fakelibs must be installed manually".format(fw_major), YELLOW)
+            self.results["step_fakelibs"] = {
+                "installed": [], "source": None, "error": "no fakelib folder found"}
+            return
+
+        # List available fakelib files
+        fakelib_files = []
+        for fname in os.listdir(fakelib_src):
+            if fname.lower().endswith((".sprx", ".prx", ".elf")):
+                fakelib_files.append(fname)
+
+        if not fakelib_files:
+            _log("  [WARN] Fakelib folder is empty: {}".format(fakelib_src), YELLOW)
+            self.results["step_fakelibs"] = {
+                "installed": [], "source": fakelib_src, "error": "empty folder"}
+            return
+
+        # Create fakelib/ folder in game directory
+        dest_dir = os.path.join(self.args.game_folder, "fakelib")
+        os.makedirs(dest_dir, exist_ok=True)
+
+        installed = []
+        for fname in sorted(fakelib_files):
+            src = os.path.join(fakelib_src, fname)
+            dst = os.path.join(dest_dir, fname)
+            shutil.copy2(src, dst)
+            size_kb = os.path.getsize(dst) // 1024
+            installed.append(fname)
+            _log("  [FAKELIB] {} ({}KB)".format(fname, size_kb), GREEN)
+
+        # Also copy marker file if present (FW4, FW5, etc.)
+        marker = "FW{}".format(fw_major)
+        marker_src = os.path.join(fakelib_src, marker)
+        if os.path.exists(marker_src):
+            shutil.copy2(marker_src, os.path.join(dest_dir, marker))
+
+        self.results["step_fakelibs"] = {
+            "installed": installed,
+            "source": fakelib_src,
+            "dest": dest_dir,
+        }
+        _log("  --- Installed {} fakelib(s) for FW {} -> {}".format(
+            len(installed), fw_major, dest_dir), CYAN)
+
+    def _find_fakelib_folder(self, fw_major: str) -> str | None:
+        """Locate the fakelib folder for a given firmware major version.
+        Searches numbered folders (4/, 5/, 6/, 7/) in common locations.
+        """
+        search_bases = []
+
+        # 1. Next to the app executable (bin/Debug/net8.0-windows/N/fakelib/)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        app_base = os.path.dirname(script_dir)
+        for walk_dir in [app_base]:
+            for _ in range(4):
+                candidate = os.path.join(walk_dir, fw_major, "fakelib")
+                search_bases.append(candidate)
+                # Also check bin/Debug paths
+                for sub in ["bin/Debug/net8.0-windows", "bin/Release/net8.0-windows",
+                            "bin/Debug/net10.0-windows", "bin/Release/net10.0-windows"]:
+                    search_bases.append(
+                        os.path.join(walk_dir, "PS5 BACKPORK KITCHEN", sub,
+                                     fw_major, "fakelib"))
+                    search_bases.append(
+                        os.path.join(walk_dir, sub, fw_major, "fakelib"))
+                parent = os.path.dirname(walk_dir)
+                if parent == walk_dir:
+                    break
+                walk_dir = parent
+
+        # 2. Next to the game folder itself
+        search_bases.append(
+            os.path.join(os.path.dirname(self.args.game_folder), fw_major, "fakelib"))
+
+        for candidate in search_bases:
+            if os.path.isdir(candidate):
+                # Verify it has .sprx files
+                has_sprx = any(f.endswith((".sprx", ".prx", ".elf"))
+                              for f in os.listdir(candidate))
+                if has_sprx:
+                    return candidate
+
+        return None
 
     # ---- Step 2: BPS Patching ------------------------------------------
 
@@ -911,6 +1017,7 @@ class BackportPipeline:
 
         self.step_analysis(files, decrypt_map)
         self.step_lib_compat(files)
+        self.step_install_fakelibs()
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
         self.step_sdk_patch(files, decrypt_map)
@@ -943,8 +1050,9 @@ class BackportPipeline:
             + self.results["step_resign"]["resigned"]
         )
         param_patched = self.results["step_param"]["patched"]
+        fakelibs_installed = self.results.get("step_fakelibs", {}).get("installed", [])
 
-        if not modified and not param_patched:
+        if not modified and not param_patched and not fakelibs_installed:
             _log("[ZIP] No files were modified — skipping ZIP creation.", YELLOW)
             return None
 
@@ -964,13 +1072,23 @@ class BackportPipeline:
                     arcname = os.path.relpath(fpath, self.args.game_folder)
                     zf.write(fpath, arcname)
                     n_zipped += 1
-            # Also include patched param.json/param.sfo
+            # Include patched param.json/param.sfo
             if param_patched:
                 for root, _dirs, fnames in os.walk(self.args.game_folder):
                     for fname in fnames:
                         if fname in param_patched:
                             fpath = os.path.join(root, fname)
                             arcname = os.path.relpath(fpath, self.args.game_folder)
+                            zf.write(fpath, arcname)
+                            n_zipped += 1
+            # Include installed fakelib files
+            if fakelibs_installed:
+                fakelib_dir = os.path.join(self.args.game_folder, "fakelib")
+                if os.path.isdir(fakelib_dir):
+                    for fname in os.listdir(fakelib_dir):
+                        fpath = os.path.join(fakelib_dir, fname)
+                        if os.path.isfile(fpath):
+                            arcname = "fakelib/{}".format(fname)
                             zf.write(fpath, arcname)
                             n_zipped += 1
 
@@ -1024,6 +1142,18 @@ class BackportPipeline:
                  GREEN if lc_score >= 80 else (YELLOW if lc_score >= 50 else RED))
             if fakelibs_avail:
                 _log("  Fakelibs avail:   {}".format(", ".join(fakelibs_avail[:5])), CYAN)
+
+        # Fakelib info
+        fakelibs = r.get("step_fakelibs", {})
+        fl_installed = fakelibs.get("installed", [])
+        if fl_installed:
+            _log("  Fakelibs:         {} installed".format(len(fl_installed)), GREEN)
+            for fl in fl_installed:
+                _log("                    {}".format(fl), GREEN)
+        else:
+            fl_err = fakelibs.get("error", "")
+            if fl_err:
+                _log("  Fakelibs:         NONE — {}".format(fl_err), RED)
 
         _log("  BPS applied:      {}".format(len(r["step_bps"]["applied"])))
 
