@@ -222,9 +222,14 @@ class LibCompatAnalyzer:
         # Detect category from name patterns if not in known libs
         if category == "unknown":
             category = _guess_lib_category(base_name)
-            # Mark GPU/kernel libs as essential even if not in our DB
-            if category in ("gpu", "kernel"):
-                is_essential = True
+
+        # Determine if this is a system-provided library (always on console)
+        # vs a library that may need fakelib replacement.
+        # System libs (libkernel, libSceVideoOut, libScePad, etc.) are provided
+        # by the firmware and are backward-compatible — they don't need fakelibs.
+        # Only GPU command libs (AGC/GNM) are known to have breaking API changes.
+        is_system_provided = _is_system_provided_lib(base_name, category)
+        needs_fakelib_type = _needs_fakelib(base_name, category)
 
         # Count missing symbols for this library from analysis report
         missing_for_lib = 0
@@ -249,35 +254,25 @@ class LibCompatAnalyzer:
                 "detail": "Fakelib available for FW {} — install it".format(
                     target_fw.split(".")[0]),
             }
-        elif is_essential and category in ("kernel", "gpu") and fw_gap >= 2:
-            # Essential GPU/kernel lib with large FW gap and no fakelib
+        elif needs_fakelib_type and fw_gap >= 2:
+            # GPU command library (AGC/GNM) with FW gap — API changes are known
             risk = "CRITICAL"
             score = 15
             recommendation = {
                 "lib": lib_name,
                 "action": "fakelib_needed",
-                "detail": "CRITICAL: {} ({}) — no fakelib for FW {}, gap={} versions. "
-                          "Game will likely freeze/crash.".format(
-                    description, category, target_fw.split(".")[0], fw_gap),
+                "detail": "CRITICAL: {} ({}) — API changes across FW versions, "
+                          "fakelib needed for FW {}. Game will likely freeze/crash.".format(
+                    description, category, target_fw.split(".")[0]),
             }
-        elif is_essential and category in ("kernel", "gpu"):
+        elif needs_fakelib_type:
             risk = "HIGH"
             score = 40
             recommendation = {
                 "lib": lib_name,
                 "action": "fakelib_needed",
-                "detail": "{} is essential ({}), no fakelib — risk of incompatibility".format(
+                "detail": "{} ({}) — may need fakelib for compatibility".format(
                     description, category),
-            }
-        elif category in ("gpu", "video") and fw_gap >= 3:
-            # Non-essential but GPU/video related with big gap
-            risk = "HIGH"
-            score = 40
-            recommendation = {
-                "lib": lib_name,
-                "action": "fakelib_recommended",
-                "detail": "{} API likely changed across {} FW versions".format(
-                    category.upper(), fw_gap),
             }
         elif critical_missing > 0:
             risk = "HIGH"
@@ -296,14 +291,15 @@ class LibCompatAnalyzer:
                 "action": "stub_functions",
                 "detail": "Stub {} missing function(s) individually".format(missing_for_lib),
             }
-        elif fw_gap >= 4 and category not in ("unknown", "misc"):
-            # Large gap with known library type — warn even without confirmed missing syms
-            risk = "MEDIUM"
-            score = 70
+        elif (fw_gap >= 4 and not is_system_provided
+              and category not in ("unknown", "misc")):
+            # Large gap with non-system library — warn about potential API changes
+            risk = "LOW"
+            score = 80
             recommendation = {
                 "lib": lib_name,
                 "action": "check_compat",
-                "detail": "FW gap={} versions, {} may have API changes we can't detect".format(
+                "detail": "FW gap={} versions, {} may have API changes".format(
                     fw_gap, category),
             }
         else:
@@ -347,6 +343,58 @@ def _calc_fw_gap(source_fw: str, target_fw: str) -> int:
         return abs(src_major - tgt_major)
     except (ValueError, IndexError):
         return 0
+
+
+def _is_system_provided_lib(base_name: str, category: str) -> bool:
+    """Check if a library is provided by the PS5 system firmware.
+    System libs are always present on every FW version — they are backward
+    compatible and do NOT need fakelib replacements. The console provides them.
+
+    Examples: libkernel, libSceVideoOut, libScePad, libSceUserService, etc.
+    """
+    # These are ALWAYS on the console, stable ABI across firmwares
+    system_libs = {
+        "libkernel", "libSceLibcInternal", "libScePosix", "libc",
+        "libSceVideoOut", "libSceAudioOut", "libSceAudioIn",
+        "libScePad", "libSceMouse",
+        "libSceUserService", "libSceSystemService", "libSceSysmodule",
+        "libSceNet", "libSceNetCtl", "libSceHttp", "libSceHttp2", "libSceSsl",
+        "libSceNpAuth", "libSceNpManager", "libSceNpTrophy", "libSceNpTrophy2",
+        "libSceNpWebApi", "libSceNpWebApi2", "libSceNpCommerce",
+        "libSceNpSignaling", "libSceNpMatching2", "libSceNpCppWebApi",
+        "libSceNpSessionSignaling", "libSceNpEntitlementAccess",
+        "libSceNpGameIntent", "libSceNpUniversalDataSystem",
+        "libSceSaveData", "libSceSaveData.native",
+        "libSceSaveDataDialog", "libSceSaveDataDialog.native",
+        "libSceCommonDialog", "libSceMsgDialog", "libSceMsgDialog.native",
+        "libSceIme", "libSceImeDialog", "libSceErrorDialog",
+        "libSceRtc", "libScePlayGo", "libSceRandom",
+        "libSceAppContent", "libSceShare", "libSceScreenShot",
+        "libSceGameLiveStreaming", "libSceGameUpdate",
+        "libSceContentExport", "libScePlayerInvitationDialog",
+        "libSceWebBrowserDialog", "libSceVoiceQoS",
+        "libSceJson", "libSceJson2", "libSceFont-module",
+        "libSceCesCs-module", "libSceVideodec2", "libSceAudiodec.native",
+        "libSceAvPlayer.native", "libSceAcm", "libSceAmpr",
+        "libSceAjm.native", "libSceRazorCpu",
+    }
+    return base_name in system_libs
+
+
+def _needs_fakelib(base_name: str, category: str) -> bool:
+    """Check if a library is known to have breaking API changes across FW versions
+    and typically needs a fakelib replacement for backporting.
+
+    Only GPU command libraries (AGC, AGC Driver, GNM) are known to have
+    significant API changes. Other system libs are backward-compatible.
+    """
+    fakelib_libs = {
+        "libSceAgc",           # AMD GPU command submission — API evolves per FW
+        "libSceAgcDriver",     # AGC driver interface — changes with GPU updates
+        "libSceGnmDriver",    # GNM driver (PS4 compat layer) — may change
+        "libSceFiber",         # Fiber API — known to change in some FW versions
+    }
+    return base_name in fakelib_libs
 
 
 def _guess_lib_category(base_name: str) -> str:
