@@ -413,9 +413,10 @@ class BackportPipeline:
                         nr = report.get("nid_resolved", 0)
                         nm = report.get("nid_missing", 0)
                         nu = report.get("nid_unresolved", 0)
+                        cov = report.get("nid_db_coverage", 0)
                         risk = report.get("risk_level", "NONE")
-                        nid_info = " | NID resolved:{} missing:{} unresolved:{} risk:{}".format(
-                            nr, nm, nu, risk)
+                        nid_info = " | NID known:{} missing:{} unknown:{} coverage:{}% risk:{}".format(
+                            nr, nm, nu, cov, risk)
                     _log("  {} [{}] {}KB code:{}KB libs:{} imports:{} PLT:{} exports:{}{}".format(
                         fname, tag, size_kb, code_kb, len(libs), n_imp, n_plt, n_exp,
                         nid_info),
@@ -472,10 +473,21 @@ class BackportPipeline:
                 report.get("missing_symbols", []))
 
         result = analyzer.analyze(sorted(all_libs), self.args.fw_target,
-                                  merged_report)
+                                  merged_report,
+                                  source_fw=self.args.fw_current)
         self.results["step_lib_compat"] = result
 
-        # Print results
+        # Print FW gap warnings first
+        for warn in result.get("warnings", []):
+            _log("  [!!] {}".format(warn), RED)
+
+        if result.get("fw_gap_level") in ("HUGE", "LARGE"):
+            _log("  FW gap: {} -> {} ({} major versions — {})".format(
+                self.args.fw_current, self.args.fw_target,
+                result.get("fw_gap", 0), result.get("fw_gap_level", "")),
+                RED)
+
+        # Print per-library results
         for lr in result.get("lib_results", []):
             lib = lr["lib"]
             risk = lr.get("risk", "NONE")

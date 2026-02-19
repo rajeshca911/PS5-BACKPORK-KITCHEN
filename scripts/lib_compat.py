@@ -93,13 +93,15 @@ class LibCompatAnalyzer:
             pass
 
     def analyze(self, required_libs: list[str], target_fw: str,
-                analysis_report: dict = None) -> dict:
+                analysis_report: dict = None,
+                source_fw: str = None) -> dict:
         """Analyze library compatibility.
 
         Args:
             required_libs: List of library names the game requires
             target_fw: Target firmware version (e.g., "6.00")
             analysis_report: Optional ELF analysis report with missing_symbols
+            source_fw: Source firmware version (for FW gap calculation)
 
         Returns dict with:
             - lib_results: per-library analysis
@@ -107,18 +109,48 @@ class LibCompatAnalyzer:
             - fakelibs_available: which fakelibs exist
             - compatibility_score: 0-100
             - risk_level: NONE/LOW/MEDIUM/HIGH/CRITICAL
+            - fw_gap: firmware version gap magnitude
+            - warnings: list of general warnings
         """
         available_fakelibs = self.fakelibs.get_available_fakelib_names(target_fw)
         recommended_fw = self.fakelibs.get_recommended_fw()
+
+        # Calculate FW gap severity
+        fw_gap = _calc_fw_gap(source_fw, target_fw) if source_fw else 0
+        fw_gap_level = ("HUGE" if fw_gap >= 4 else
+                        "LARGE" if fw_gap >= 2 else
+                        "MODERATE" if fw_gap >= 1 else "SMALL")
+
+        # Check if fakelibs exist for target FW at all
+        has_any_fakelibs = len(available_fakelibs) > 0
 
         lib_results = []
         total_score = 0
         max_risk = "NONE"
         recommendations = []
+        warnings = []
+
+        # Global warning for large FW gap
+        if fw_gap >= 4:
+            warnings.append(
+                "HUGE firmware gap ({} -> {}): {} major versions. "
+                "Many system APIs may have changed. Consider targeting a closer FW "
+                "(6.00 or 7.00 have fakelibs available).".format(
+                    source_fw, target_fw, fw_gap))
+        elif fw_gap >= 2:
+            warnings.append(
+                "Large firmware gap ({} -> {}): {} major versions. "
+                "Some system APIs may be incompatible.".format(
+                    source_fw, target_fw, fw_gap))
+
+        if not has_any_fakelibs:
+            warnings.append(
+                "No fakelibs available for FW {}. Fakelibs exist for FW 6 and 7. "
+                "Consider targeting FW 6.00 or 7.00 instead.".format(target_fw))
 
         for lib in required_libs:
             result = self._analyze_lib(lib, target_fw, available_fakelibs,
-                                       analysis_report)
+                                       analysis_report, fw_gap, source_fw)
             lib_results.append(result)
 
             # Track worst risk
@@ -138,22 +170,33 @@ class LibCompatAnalyzer:
         overall_score = total_score // n_libs if n_libs > 0 else 100
 
         # Also check for fakelibs we recommend but the game doesn't explicitly need
-        # (some games implicitly depend on libraries loaded by others)
         also_recommend = []
         if recommended_fw:
             for fakelib_entry in self.fakelibs.get_fakelibs_for_fw(target_fw):
                 for fname in fakelib_entry.get("files", []):
                     if fname.endswith(".elf"):
-                        continue  # skip payload ELFs
+                        continue
                     normalized = fname if fname.endswith(".sprx") else fname + ".sprx"
                     if normalized not in required_libs:
                         also_recommend.append(fname)
 
+        # If no fakelibs for this FW, suggest the ones from closest available FW
+        if not has_any_fakelibs and recommended_fw:
+            rec_fakelibs = self.fakelibs.get_available_fakelib_names(
+                recommended_fw + ".00")
+            if rec_fakelibs:
+                also_recommend = ["(FW {} fakelibs): {}".format(
+                    recommended_fw, ", ".join(sorted(rec_fakelibs)[:6]))]
+
         return {
             "target_fw": target_fw,
+            "source_fw": source_fw,
+            "fw_gap": fw_gap,
+            "fw_gap_level": fw_gap_level,
             "required_libs": required_libs,
             "lib_results": lib_results,
             "recommendations": recommendations,
+            "warnings": warnings,
             "fakelibs_available": sorted(available_fakelibs),
             "also_recommend": also_recommend,
             "compatibility_score": overall_score,
@@ -162,16 +205,26 @@ class LibCompatAnalyzer:
         }
 
     def _analyze_lib(self, lib_name: str, target_fw: str,
-                     available_fakelibs: set, analysis_report: dict = None) -> dict:
+                     available_fakelibs: set, analysis_report: dict = None,
+                     fw_gap: int = 0, source_fw: str = None) -> dict:
         """Analyze a single library's compatibility."""
         base_name = lib_name.replace(".sprx", "").replace(".prx", "")
         has_fakelib = self.fakelibs.has_fakelib(lib_name, target_fw)
 
-        # Get library metadata from NID DB
-        lib_info = self._known_libs.get(lib_name, {})
+        # Get library metadata from NID DB — try both .sprx and .prx variants
+        lib_info = (self._known_libs.get(lib_name) or
+                    self._known_libs.get(base_name + ".sprx") or
+                    self._known_libs.get(base_name + ".prx") or {})
         category = lib_info.get("category", "unknown")
         is_essential = lib_info.get("essential", False)
         description = lib_info.get("desc", lib_name)
+
+        # Detect category from name patterns if not in known libs
+        if category == "unknown":
+            category = _guess_lib_category(base_name)
+            # Mark GPU/kernel libs as essential even if not in our DB
+            if category in ("gpu", "kernel"):
+                is_essential = True
 
         # Count missing symbols for this library from analysis report
         missing_for_lib = 0
@@ -185,22 +238,46 @@ class LibCompatAnalyzer:
                         critical_missing += 1
 
         # Determine risk and recommendation
+        recommendation = None
+
         if has_fakelib:
             risk = "LOW"
             score = 90
             recommendation = {
                 "lib": lib_name,
                 "action": "use_fakelib",
-                "detail": "Fakelib available for FW {} — use it".format(target_fw.split(".")[0]),
+                "detail": "Fakelib available for FW {} — install it".format(
+                    target_fw.split(".")[0]),
             }
-        elif is_essential and category in ("kernel", "gpu"):
+        elif is_essential and category in ("kernel", "gpu") and fw_gap >= 2:
+            # Essential GPU/kernel lib with large FW gap and no fakelib
             risk = "CRITICAL"
-            score = 20
+            score = 15
             recommendation = {
                 "lib": lib_name,
                 "action": "fakelib_needed",
-                "detail": "CRITICAL: {} is essential, no fakelib available — high crash risk".format(
-                    description),
+                "detail": "CRITICAL: {} ({}) — no fakelib for FW {}, gap={} versions. "
+                          "Game will likely freeze/crash.".format(
+                    description, category, target_fw.split(".")[0], fw_gap),
+            }
+        elif is_essential and category in ("kernel", "gpu"):
+            risk = "HIGH"
+            score = 40
+            recommendation = {
+                "lib": lib_name,
+                "action": "fakelib_needed",
+                "detail": "{} is essential ({}), no fakelib — risk of incompatibility".format(
+                    description, category),
+            }
+        elif category in ("gpu", "video") and fw_gap >= 3:
+            # Non-essential but GPU/video related with big gap
+            risk = "HIGH"
+            score = 40
+            recommendation = {
+                "lib": lib_name,
+                "action": "fakelib_recommended",
+                "detail": "{} API likely changed across {} FW versions".format(
+                    category.upper(), fw_gap),
             }
         elif critical_missing > 0:
             risk = "HIGH"
@@ -219,10 +296,19 @@ class LibCompatAnalyzer:
                 "action": "stub_functions",
                 "detail": "Stub {} missing function(s) individually".format(missing_for_lib),
             }
+        elif fw_gap >= 4 and category not in ("unknown", "misc"):
+            # Large gap with known library type — warn even without confirmed missing syms
+            risk = "MEDIUM"
+            score = 70
+            recommendation = {
+                "lib": lib_name,
+                "action": "check_compat",
+                "detail": "FW gap={} versions, {} may have API changes we can't detect".format(
+                    fw_gap, category),
+            }
         else:
             risk = "NONE"
             score = 100
-            recommendation = None
 
         return {
             "lib": lib_name,
@@ -247,6 +333,52 @@ _RISK_ORDER = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
 
 def _worst_risk(a: str, b: str) -> str:
     return a if _RISK_ORDER.get(a, 0) >= _RISK_ORDER.get(b, 0) else b
+
+
+def _calc_fw_gap(source_fw: str, target_fw: str) -> int:
+    """Calculate the major version gap between two firmware versions.
+    e.g., 9.60 -> 4.00 = gap of 5 major versions.
+    """
+    if not source_fw or not target_fw:
+        return 0
+    try:
+        src_major = int(source_fw.split(".")[0])
+        tgt_major = int(target_fw.split(".")[0])
+        return abs(src_major - tgt_major)
+    except (ValueError, IndexError):
+        return 0
+
+
+def _guess_lib_category(base_name: str) -> str:
+    """Guess library category from its name when not in our known libs DB."""
+    name_lower = base_name.lower()
+    if "agc" in name_lower or "gnm" in name_lower or "gpu" in name_lower:
+        return "gpu"
+    if "videoout" in name_lower or "video" in name_lower:
+        return "video"
+    if "audioout" in name_lower or "audio" in name_lower:
+        return "audio"
+    if "kernel" in name_lower:
+        return "kernel"
+    if "pad" in name_lower or "mouse" in name_lower:
+        return "controller"
+    if "net" in name_lower or "http" in name_lower or "ssl" in name_lower:
+        return "network"
+    if "nptrophy" in name_lower or "trophy" in name_lower:
+        return "trophy"
+    if "savedata" in name_lower:
+        return "savedata"
+    if "np" in name_lower:
+        return "np_platform"
+    if "dialog" in name_lower or "ime" in name_lower:
+        return "dialog"
+    if "fiber" in name_lower:
+        return "fiber"
+    if "libc" in name_lower or "libcinternal" in name_lower or "posix" in name_lower:
+        return "system"
+    if "system" in name_lower or "user" in name_lower or "sysmodule" in name_lower:
+        return "system"
+    return "unknown"
 
 
 # ---------------------------------------------------------------------------

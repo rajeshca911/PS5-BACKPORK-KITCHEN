@@ -606,8 +606,9 @@ class ELFAnalyzer:
                     missing_symbols.append({**sym, "severity": severity})
 
         # NID DB fallback: when exports DB is empty, use built-in NID knowledge
-        nid_resolved = []
-        nid_missing = []
+        nid_resolved = []      # NID matched in DB AND available on target FW
+        nid_missing = []       # NID matched in DB BUT not available on target FW
+        nid_unresolved = []    # NID not found in DB at all (unknown)
         nid_available = False
         if not has_exports_db:
             try:
@@ -640,9 +641,9 @@ class ELFAnalyzer:
                             nid_missing.append(entry)
                             missing_symbols.append(entry)
                     else:
-                        # NID not in our DB — cannot determine availability
-                        nid_resolved.append({**sym, "resolved_name": None,
-                                             "analysis_source": "unresolved"})
+                        # NID not in our DB — UNKNOWN, cannot determine availability
+                        nid_unresolved.append({**sym, "resolved_name": None,
+                                               "analysis_source": "unresolved"})
             except ImportError:
                 pass
 
@@ -651,17 +652,32 @@ class ELFAnalyzer:
         if has_exports_db:
             score = int((len(found_symbols) / total) * 100) if total else 100
         elif nid_available:
-            # NID DB fallback scoring: resolved+available vs total
-            # Unresolved NIDs count as "assumed OK" (generous)
-            n_resolved_total = len(nid_resolved) + len(nid_missing)
-            if n_resolved_total > 0:
-                score = int((len(nid_resolved) / n_resolved_total) * 100)
+            # NID DB fallback scoring — conservative approach:
+            # Only count symbols we actually verified (resolved in DB).
+            # Unresolved NIDs are UNKNOWN, not "OK".
+            n_known = len(nid_resolved) + len(nid_missing)
+            n_unknown = len(nid_unresolved)
+            if n_known > 0:
+                # Score based on known symbols only
+                known_score = int((len(nid_resolved) / n_known) * 100)
             else:
-                score = 100  # no symbols resolved at all — no data
+                known_score = 100
+
+            # Penalize for large number of unresolved (unknown) symbols
+            # The more unknowns, the less confident we are
+            if total > 0:
+                coverage = n_known / total  # how much of imports we can verify
+                # Final score = known_score weighted by coverage, unknowns are risky
+                # With 0% coverage -> score caps at 50 (we simply don't know)
+                # With 100% coverage -> score = known_score
+                uncertainty_penalty = int((1.0 - coverage) * 50)
+                score = max(0, known_score - uncertainty_penalty)
+            else:
+                score = 100
         else:
             score = 100  # no data at all
 
-        # Risk level based on missing symbols
+        # Risk level based on missing symbols AND unresolved count
         risk_level = "NONE"
         if missing_symbols:
             has_critical = any(s.get("stub_risk") == "critical" or
@@ -676,6 +692,14 @@ class ELFAnalyzer:
                 risk_level = "MEDIUM"
             else:
                 risk_level = "LOW"
+
+        # Unresolved symbols increase risk — we can't verify them
+        if nid_available and len(nid_unresolved) > 0:
+            unresolved_ratio = len(nid_unresolved) / total if total > 0 else 0
+            if unresolved_ratio > 0.8 and risk_level in ("NONE", "LOW"):
+                risk_level = "MEDIUM"  # >80% unknown = at least medium risk
+            elif unresolved_ratio > 0.5 and risk_level == "NONE":
+                risk_level = "LOW"  # >50% unknown = at least low risk
 
         # Code size from executable segments
         code_size = sum(s["size"] for s in text_segs)
@@ -706,7 +730,10 @@ class ELFAnalyzer:
         if nid_available:
             report["nid_resolved"] = len(nid_resolved)
             report["nid_missing"] = len(nid_missing)
-            report["nid_unresolved"] = total - len(nid_resolved) - len(nid_missing)
+            report["nid_unresolved"] = len(nid_unresolved)
+            report["nid_db_coverage"] = round(
+                (len(nid_resolved) + len(nid_missing)) / total * 100, 1
+            ) if total > 0 else 0
 
         if self._is_self:
             report["self_info"] = get_self_info(self._data)
