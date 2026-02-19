@@ -503,11 +503,13 @@ class BackportPipeline:
 
     @staticmethod
     def _merge_stub_back(original_self: str, patched_elf: str):
-        """After stubbing a decrypted ELF, replace the original file.
-        selfutil --resign will re-sign later, so we replace the original
-        with the patched decrypted ELF (it needs re-signing anyway).
+        """After stubbing a decrypted ELF, the changes are already in the
+        temp ELF file. Step 5 (re-signing) will use this temp file as input
+        for selfutil. Do NOT copy over the original SELF — selfutil needs
+        the patched ELF as --input and the original path as --output.
         """
-        shutil.copy2(patched_elf, original_self)
+        # No-op: patched ELF stays in temp, step_resign reads it from decrypt_map
+        pass
 
     # ---- Step 4: SDK Version Patch -------------------------------------
 
@@ -530,10 +532,6 @@ class BackportPipeline:
                 patched, detail = _patch_sdk_version_in_file(
                     patch_path, self.args.fw_target)
                 if patched:
-                    # If we patched a decrypted copy, copy it back over the original
-                    # so that step_resign can re-sign the patched ELF
-                    if patch_path != fpath:
-                        shutil.copy2(patch_path, fpath)
                     self.results["step_sdk_patch"]["patched"].append(fname)
                     _log("  [SDK] {} — {}".format(fname, detail), GREEN)
                     n_patched += 1
@@ -680,59 +678,47 @@ class BackportPipeline:
                     decrypt_map: dict[str, str] | None = None):
         if not self.args.resign:
             return
-        _header("Step 5: Re-signing")
+        _header("Step 5: Re-signing (fake SELF)")
 
         from elf_analyzer import is_self_file
-
-        selfutil = self._find_selfutil(self.args.selfutil)
-        if not selfutil:
-            _log("[WARN] selfutil_patched.exe not found — skipping re-signing", YELLOW)
-            _log("       Download from: https://github.com/CyB1K/SelfUtil-Patched", DIM)
-            _log("       Place in SelfUtil/ folder next to the application.", DIM)
-            return
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        sys.path.insert(0, script_dir)
+        from fself_maker import make_fself
 
         if decrypt_map is None:
             decrypt_map = {}
 
-        _log("[SIGN] Using selfutil: {}".format(selfutil), DIM)
         n_signed = 0
         n_plain = 0
         for fpath in files:
             fname = os.path.basename(fpath)
 
             # Only re-sign files that are (or were) SELF containers.
-            # Plain ELF files (already decrypted / DUPLEX dumps) don't need
-            # selfutil and will crash it with "vector subscript out of range".
+            # Plain ELF files (DUPLEX dumps) don't need signing.
             with open(fpath, "rb") as f:
                 magic = f.read(4)
-            was_self = fpath in decrypt_map  # was originally SELF, decrypted by us
+            was_self = fpath in decrypt_map
             is_self_now = is_self_file(magic)
 
             if not is_self_now and not was_self:
                 n_plain += 1
-                _log("  [SIGN] {} — skipped (plain ELF, no SELF signing needed)".format(
-                    fname), DIM)
+                _log("  [SIGN] {} — skipped (plain ELF)".format(fname), DIM)
                 continue
 
             try:
-                # selfutil uses --input/--output flags (not --resign)
-                proc = subprocess.run(
-                    [selfutil, "--verbose", "--overwrite",
-                     "--input", fpath, "--output", fpath],
-                    capture_output=True, text=True, timeout=120)
-                if proc.returncode == 0:
-                    self.results["step_resign"]["resigned"].append(fname)
-                    _log("  [SIGN] {} — OK".format(fname), GREEN)
-                    n_signed += 1
-                else:
-                    err = (proc.stderr or proc.stdout or "unknown")[:200].strip()
-                    _log("  [SIGN] {} — FAILED: {}".format(fname, err), RED)
-                    self.results["step_resign"]["errors"].append(
-                        {"file": fname, "error": err})
-            except subprocess.TimeoutExpired:
-                _log("  [SIGN] {} — timeout (selfutil took too long)".format(fname), RED)
-                self.results["step_resign"]["errors"].append(
-                    {"file": fname, "error": "timeout"})
+                # Use the patched ELF from temp folder as input.
+                # For files that were SELF: decrypt_map has the decrypted+patched ELF.
+                # For files that are still SELF (not decrypted by us): skip.
+                input_path = decrypt_map.get(fpath)
+                if input_path is None:
+                    _log("  [SIGN] {} — skipped (SELF but no decrypted ELF available)".format(
+                        fname), YELLOW)
+                    continue
+
+                make_fself(input_path, fpath)
+                self.results["step_resign"]["resigned"].append(fname)
+                _log("  [SIGN] {} — OK".format(fname), GREEN)
+                n_signed += 1
             except Exception as ex:
                 _log("  [SIGN] {} — error: {}".format(fname, ex), RED)
                 self.results["step_resign"]["errors"].append(
