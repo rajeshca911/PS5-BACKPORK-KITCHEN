@@ -48,6 +48,7 @@ Public Class AdvancedBackportForm
     Private chkResign        As CheckBox
     Private chkPatchSdk      As CheckBox
     Private chkPatchParam    As CheckBox
+    Private picLogo          As PictureBox
 
     ' Log panel
     Private rtbLog As RichTextBox
@@ -193,12 +194,20 @@ Public Class AdvancedBackportForm
             .Location = New Point(190, 115),
             .Checked = False
         }
+        picLogo = New PictureBox() With {
+            .Image = My.Resources.Resources.logo,
+            .SizeMode = PictureBoxSizeMode.Zoom,
+            .Size = New Size(120, 120),
+            .Location = New Point(740, 10),
+            .Anchor = AnchorStyles.Top Or AnchorStyles.Right,
+            .BackColor = Color.Transparent
+        }
 
         For Each ctrl As Control In New Control() {
             lblGameFolder, txtGameFolder, btnBrowseFolder,
             lblFwCurrent, cmbFwCurrent, lblFwTarget, cmbFwTarget,
             chkApplyBps, chkStubMissing, chkResign,
-            chkPatchSdk, chkPatchParam
+            chkPatchSdk, chkPatchParam, picLogo
         }
             grpConfig.Controls.Add(ctrl)
         Next

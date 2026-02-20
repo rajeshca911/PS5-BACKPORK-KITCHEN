@@ -135,7 +135,7 @@ Partial Class Form1
         ' 
         gamepic.BackColor = Color.FromArgb(CByte(192), CByte(196), CByte(204))
         gamepic.Dock = DockStyle.Fill
-        gamepic.Image = My.Resources.Resources.game_controller
+        gamepic.Image = My.Resources.Resources.logo
         gamepic.Location = New Point(3, 3)
         gamepic.Name = "gamepic"
         gamepic.PixelOffsetType = Drawing2D.PixelOffsetMode.HighQuality

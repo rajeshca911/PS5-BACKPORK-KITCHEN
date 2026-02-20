@@ -357,7 +357,7 @@ Public Class Form1
         If File.Exists(gameicon) Then
             gamepic.Image = Image.FromFile(gameicon)
         Else
-            gamepic.Image = My.Resources.game_controller
+            gamepic.Image = My.Resources.logo
         End If
 
     End Sub
