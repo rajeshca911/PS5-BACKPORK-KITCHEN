@@ -558,8 +558,12 @@ class BackportPipeline:
                 "installed": [], "source": fakelib_src, "error": "empty folder"}
             return
 
-        # Create fakelib/ folder in game directory
+        # Clean and recreate fakelib/ folder in game directory
+        # (critical: leftover fakelibs from a different FW version will break the game)
         dest_dir = os.path.join(self.args.game_folder, "fakelib")
+        if os.path.exists(dest_dir):
+            shutil.rmtree(dest_dir)
+            _log("  [FAKELIB] Cleaned existing fakelib/ folder", DIM)
         os.makedirs(dest_dir, exist_ok=True)
 
         installed = []
@@ -584,6 +588,81 @@ class BackportPipeline:
         }
         _log("  --- Installed {} fakelib(s) for FW {} -> {}".format(
             len(installed), fw_major, dest_dir), CYAN)
+
+    def step_check_runtime_patcher(self):
+        """Check if the target FW needs ps5-backpork.elf runtime patcher.
+
+        BestPig's ps5-backpork.elf is a daemon that runs on the PS5 and:
+          1. Monitors SceSysCore.elf for game launches
+          2. Detects the game (PPSA/CUSA) and its sandbox path
+          3. Mounts fakelib/ over system libs using unionfs overlay
+          4. Resolves and patches PLT relocations at runtime (in memory)
+          5. Waits for the game to exit, then unmounts
+
+        FW 4/5: The kernel exploit handles fakelib mounting natively
+        FW 6+:  May need the runtime patcher for proper fakelib loading
+        FW 7+:  Requires ps5-backpork.elf for unionfs mount + PLT patching
+        """
+        fw_major = self.args.fw_target.split(".")[0]
+        fakelib_dest = os.path.join(self.args.game_folder, "fakelib")
+
+        # Check if ps5-backpork.elf is already in the fakelib folder
+        runtime_in_dest = os.path.join(fakelib_dest, "ps5-backpork.elf")
+        if os.path.exists(runtime_in_dest):
+            _log("  [RUNTIME] ps5-backpork.elf already present in fakelib/", GREEN)
+            return
+
+        # For FW 7+, check if we have the runtime patcher available
+        fw_int = int(fw_major)
+        if fw_int >= 7:
+            runtime_src = self._find_runtime_patcher()
+            if runtime_src:
+                shutil.copy2(runtime_src, runtime_in_dest)
+                _log("  [RUNTIME] Installed ps5-backpork.elf for FW {} "
+                     "(unionfs mount + PLT runtime patching)".format(fw_major), GREEN)
+                self.results["step_fakelibs"].setdefault("runtime_patcher", True)
+            else:
+                _log("  [WARN] FW {} may need ps5-backpork.elf for fakelib loading "
+                     "— not found in fakelib folders".format(fw_major), YELLOW)
+                _log("         Download from BestPig's releases or use FW 7 fakelib set", YELLOW)
+        elif fw_int == 6:
+            # FW 6 may work without runtime patcher but benefits from it
+            runtime_src = self._find_runtime_patcher()
+            if runtime_src:
+                _log("  [RUNTIME] ps5-backpork.elf available but not required for FW 6", DIM)
+            else:
+                _log("  [RUNTIME] FW 6: fakelib mounting handled by kernel exploit", DIM)
+        else:
+            _log("  [RUNTIME] FW {}: fakelib mounting handled by kernel exploit".format(
+                fw_major), DIM)
+
+    def _find_runtime_patcher(self) -> str | None:
+        """Find ps5-backpork.elf in any FW fakelib folder."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        app_base = os.path.dirname(script_dir)
+        # Search in FW7 fakelib first (where it's typically found)
+        for fw in ["7", "8", "9", "10", "6"]:
+            for base_dir in [app_base]:
+                walk_dir = base_dir
+                for _ in range(4):
+                    candidate = os.path.join(walk_dir, fw, "fakelib", "ps5-backpork.elf")
+                    if os.path.exists(candidate):
+                        return candidate
+                    for sub in ["bin/Debug/net8.0-windows", "bin/Release/net8.0-windows",
+                                "bin/Debug/net10.0-windows", "bin/Release/net10.0-windows"]:
+                        cand2 = os.path.join(walk_dir, "PS5 BACKPORK KITCHEN",
+                                             sub, fw, "fakelib", "ps5-backpork.elf")
+                        if os.path.exists(cand2):
+                            return cand2
+                        cand3 = os.path.join(walk_dir, sub, fw, "fakelib",
+                                             "ps5-backpork.elf")
+                        if os.path.exists(cand3):
+                            return cand3
+                    parent = os.path.dirname(walk_dir)
+                    if parent == walk_dir:
+                        break
+                    walk_dir = parent
+        return None
 
     def _find_fakelib_folder(self, fw_major: str) -> str | None:
         """Locate the fakelib folder for a given firmware major version.
@@ -1018,6 +1097,7 @@ class BackportPipeline:
         self.step_analysis(files, decrypt_map)
         self.step_lib_compat(files)
         self.step_install_fakelibs()
+        self.step_check_runtime_patcher()
         self.step_bps(files)
         self.step_stub(files, decrypt_map)
 
@@ -1169,6 +1249,8 @@ class BackportPipeline:
             fl_err = fakelibs.get("error", "")
             if fl_err:
                 _log("  Fakelibs:         NONE — {}".format(fl_err), RED)
+        if fakelibs.get("runtime_patcher"):
+            _log("  Runtime patcher:  ps5-backpork.elf (unionfs + PLT patching)", GREEN)
 
         _log("  BPS applied:      {}".format(len(r["step_bps"]["applied"])))
 
