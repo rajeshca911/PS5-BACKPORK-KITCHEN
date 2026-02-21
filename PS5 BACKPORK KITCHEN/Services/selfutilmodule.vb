@@ -7,6 +7,8 @@ Module selfutilmodule
         Return selfutilexe
     End Function
 
+    Private Const SELFUTIL_TIMEOUT_MS As Integer = 60000 ' 60 seconds
+
     Public Function unpackfile(sourcefile As String, outputElfPath As String) As Boolean
         Try
             Dim selfutilexe As String = Getselfutilexepath()
@@ -33,21 +35,45 @@ Module selfutilmodule
             .RedirectStandardError = True
         }
 
-            Using process As Process = Process.Start(startInfo)
-                process.WaitForExit()
+            Dim stdoutText As String = ""
+            Dim stderrText As String = ""
 
-                Dim stdout = process.StandardOutput.ReadToEnd()
-                Dim stderr = process.StandardError.ReadToEnd()
+            Using proc As Process = Process.Start(startInfo)
+                ' Read streams asynchronously to prevent deadlock
+                Dim stdoutTask = proc.StandardOutput.ReadToEndAsync()
+                Dim stderrTask = proc.StandardError.ReadToEndAsync()
 
-                If Not String.IsNullOrWhiteSpace(stdout) Then
-                    Logger.Log(Form1.rtbStatus, stdout, Color.Blue)
+                Dim exited As Boolean = proc.WaitForExit(SELFUTIL_TIMEOUT_MS)
+
+                If Not exited Then
+                    ' Process hung (e.g. debug assertion dialog) — kill it
+                    Try
+                        proc.Kill()
+                        proc.WaitForExit(5000)
+                    Catch
+                        ' Ignore kill errors
+                    End Try
+                    Logger.Log(Form1.rtbStatus,
+                        $"SelfUtil timed out processing {Path.GetFileName(sourcefile)} — the file may be unsupported or corrupted.",
+                        Color.Red)
+                    Return False
                 End If
 
-                If Not String.IsNullOrWhiteSpace(stderr) Then
-                    Logger.Log(Form1.rtbStatus, stderr, Color.Red)
+                stdoutText = If(stdoutTask.Wait(5000), stdoutTask.Result, "")
+                stderrText = If(stderrTask.Wait(5000), stderrTask.Result, "")
+
+                If Not String.IsNullOrWhiteSpace(stdoutText) Then
+                    Logger.Log(Form1.rtbStatus, stdoutText, Color.Blue)
                 End If
 
-                If process.ExitCode <> 0 Then
+                If Not String.IsNullOrWhiteSpace(stderrText) Then
+                    Logger.Log(Form1.rtbStatus, stderrText, Color.Red)
+                End If
+
+                If proc.ExitCode <> 0 Then
+                    Logger.Log(Form1.rtbStatus,
+                        $"SelfUtil failed with exit code {proc.ExitCode} for {Path.GetFileName(sourcefile)}",
+                        Color.Red)
                     Return False
                 End If
             End Using

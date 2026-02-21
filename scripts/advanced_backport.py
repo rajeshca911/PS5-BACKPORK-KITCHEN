@@ -342,7 +342,7 @@ class BackportPipeline:
                 proc = subprocess.run(
                     [selfutil, "--verbose", "--overwrite",
                      "--input", fpath, "--output", elf_out],
-                    capture_output=True, text=True, timeout=120)
+                    capture_output=True, text=True, timeout=60)
                 if proc.returncode == 0 and os.path.exists(elf_out) and \
                         os.path.getsize(elf_out) > 0:
                     mapping[fpath] = elf_out
@@ -350,6 +350,8 @@ class BackportPipeline:
                 else:
                     err = proc.stderr[:200].strip() if proc.stderr else "unknown"
                     _log("  [DECRYPT] {} — FAILED: {}".format(fname, err), YELLOW)
+            except subprocess.TimeoutExpired:
+                _log("  [DECRYPT] {} — timed out (file may be unsupported or corrupted)".format(fname), YELLOW)
             except Exception as ex:
                 _log("  [DECRYPT] {} — error: {}".format(fname, ex), YELLOW)
 
