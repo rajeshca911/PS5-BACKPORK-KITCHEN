@@ -10,7 +10,7 @@
     End Sub
 
     Private Sub NightLinkLabel2_LinkClicked(sender As Object, e As LinkLabelLinkClickedEventArgs) Handles NightLinkLabel2.LinkClicked
-        OpenURL(selfutil)
+        OpenURL(selfutilurl)
     End Sub
 
     Private Sub NightLinkLabel3_LinkClicked(sender As Object, e As LinkLabelLinkClickedEventArgs) Handles NightLinkLabel3.LinkClicked
