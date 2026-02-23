@@ -162,7 +162,8 @@ Public Class ElfPatcher
             ')
             'SendToLogFile($"[ELF-SOURCE] MD5 = {ComputeMD5(file)}-{name}")
             Dim patched = PatchElfSmart(file, targetPs5, targetPs4)
-            Logger.Log(Form1.rtbStatus, $"Elf: {file}", Color.Purple)
+
+            Logger.Log(Form1.rtbStatus, $"Elf: {name}", Color.Purple)
             updatestatus($"Patching:{name}", 3)
             If patched Then
 

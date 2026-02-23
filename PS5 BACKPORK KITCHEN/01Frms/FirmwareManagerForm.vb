@@ -468,23 +468,23 @@ Public Class FirmwareManagerForm
 
             Dim allMetadata = firmwareService.GetAllFirmwareMetadata()
 
-            For Each version In Constants.SupportedFirmwareVersions
-                If allMetadata.ContainsKey(version) Then
-                    Dim meta = allMetadata(version)
+            For Each Fversion In Constants.SupportedFirmwareVersions
+                If allMetadata.ContainsKey(Fversion) Then
+                    Dim meta = allMetadata(Fversion)
                     Dim row = dgvFirmware.Rows(dgvFirmware.Rows.Add())
 
                     ' Get firmware info from download module
-                    Dim fwInfo = FirmwareDownloadModule.GetFirmwareInfo(version)
+                    Dim fwInfo = FirmwareDownloadModule.GetFirmwareInfo(Fversion)
 
-                    row.Cells("Version").Value = version.ToString()
-                    row.Cells("VersionString").Value = If(fwInfo IsNot Nothing, fwInfo.VersionString, $"{version}.00.00")
+                    row.Cells("version").Value = Fversion.ToString()
+                    row.Cells("VersionString").Value = If(fwInfo IsNot Nothing, fwInfo.VersionString, $"{Fversion}.00.00")
                     row.Cells("BuildDate").Value = If(fwInfo IsNot Nothing, fwInfo.BuildDate, "Unknown")
                     row.Cells("ReleaseDate").Value = If(fwInfo IsNot Nothing, fwInfo.ReleaseDate, "Unknown")
                     row.Cells("Status").Value = GetStatusText(meta.Status)
                     row.Cells("Libraries").Value = meta.LibraryCount.ToString()
                     row.Cells("Size").Value = FirmwareManagerService.FormatBytes(meta.SizeBytes)
                     row.Cells("Notes").Value = If(fwInfo IsNot Nothing, fwInfo.Notes, "")
-                    row.Cells("Action").Value = GetActionText(meta.Status, version)
+                    row.Cells("Action").Value = GetActionText(meta.Status, Fversion)
 
                     ' Store metadata in row tag
                     row.Tag = meta
@@ -548,23 +548,34 @@ Public Class FirmwareManagerForm
             dgvArchive.Rows.Clear()
 
             ' Load all firmware with available downloads from database
-            For Each version In Constants.SupportedFirmwareVersions
-                Dim fwInfo = FirmwareDownloadModule.GetFirmwareInfo(version)
+            For Each Fversion In Constants.SupportedFirmwareVersions
+                Dim fwInfo = FirmwareDownloadModule.GetFirmwareInfo(Fversion)
 
                 ' Only show firmware that have download URLs available
-                If fwInfo IsNot Nothing AndAlso FirmwareDownloadModule.IsDownloadAvailable(version) Then
+                If fwInfo IsNot Nothing AndAlso FirmwareDownloadModule.IsDownloadAvailable(Fversion) Then
                     Dim row = dgvArchive.Rows(dgvArchive.Rows.Add())
 
                     ' Checkbox (unchecked by default)
                     row.Cells("Select").Value = False
 
                     ' Basic info
-                    row.Cells("Version").Value = version.ToString()
+                    row.Cells("version").Value = Fversion.ToString()
                     row.Cells("VersionString").Value = fwInfo.VersionString
-                    row.Cells("Size").Value = fwInfo.Notes.Split("("c).LastOrDefault()?.Replace(")", "").Trim() ' Extract size from notes
+                    'row.Cells("Size").Value = fwInfo.Notes.Split("("c).LastOrDefault()?.Replace(")", "").Trim() ' Extract size from notes
+                    Dim sizeText As String = ""
+
+                    If Not String.IsNullOrWhiteSpace(fwInfo.Notes) Then
+                        sizeText = fwInfo.Notes.
+        Split("("c).
+        LastOrDefault()?.
+        Replace(")", "").
+        Trim()
+                    End If
+
+                    row.Cells("Size").Value = sizeText
 
                     ' Check if already installed
-                    Dim meta = firmwareService.GetFirmwareMetadata(version)
+                    Dim meta = firmwareService.GetFirmwareMetadata(Fversion)
                     If meta IsNot Nothing AndAlso (meta.Status = FirmwareManagerService.FirmwareStatus.Processed OrElse meta.Status = FirmwareManagerService.FirmwareStatus.Verified) Then
                         row.Cells("Status").Value = "✓ Installed"
                         row.Cells("Status").Style.ForeColor = ColorPalette.Success
@@ -577,8 +588,8 @@ Public Class FirmwareManagerForm
                     row.Cells("SHA256").Value = If(fwInfo.Checksum?.Length > 16, fwInfo.Checksum.Substring(0, 16) & "...", fwInfo.Checksum)
                     row.Cells("Action").Value = "Download"
 
-                    ' Store version in tag
-                    row.Tag = version
+                    ' Store Fversion in tag
+                    row.Tag = Fversion
                 End If
             Next
 
@@ -763,8 +774,8 @@ Public Class FirmwareManagerForm
             )
 
             If result = DialogResult.Yes Then
-                For Each version In selectedVersions
-                    Await DownloadAndExtractFirmwareAsync(version)
+                For Each fversion In selectedVersions
+                    Await DownloadAndExtractFirmwareAsync(fversion)
                 Next
 
                 LoadFirmwareData()
@@ -801,20 +812,20 @@ Public Class FirmwareManagerForm
                 Dim successCount = 0
                 Dim failCount = 0
 
-                For Each version In availableVersions
+                For Each Fversion In availableVersions
                     ' Check if already installed
-                    Dim meta = firmwareService.GetFirmwareMetadata(version)
+                    Dim meta = firmwareService.GetFirmwareMetadata(Fversion)
                     If meta IsNot Nothing AndAlso (meta.Status = FirmwareManagerService.FirmwareStatus.Processed OrElse meta.Status = FirmwareManagerService.FirmwareStatus.Verified) Then
-                        Logger.LogToFile($"Firmware {version} already installed, skipping", LogLevel.Info)
+                        Logger.LogToFile($"Firmware {Fversion} already installed, skipping", LogLevel.Info)
                         Continue For
                     End If
 
                     ' Download and extract
                     Try
-                        Await DownloadAndExtractFirmwareAsync(version)
+                        Await DownloadAndExtractFirmwareAsync(Fversion)
                         successCount += 1
                     Catch ex As Exception
-                        Logger.LogToFile($"Failed to download firmware {version}: {ex.Message}", LogLevel.Error)
+                        Logger.LogToFile($"Failed to download firmware {Fversion}: {ex.Message}", LogLevel.Error)
                         failCount += 1
                     End Try
                 Next
@@ -1099,12 +1110,12 @@ Public Class FirmwareManagerForm
     End Function
 
     Private Async Function DownloadAllFirmwaresAsync() As Task
-        For Each version In Constants.SupportedFirmwareVersions
-            Dim meta = firmwareService.GetFirmwareMetadata(version)
+        For Each Fversion In Constants.SupportedFirmwareVersions
+            Dim meta = firmwareService.GetFirmwareMetadata(Fversion)
 
             ' Only download if status is NotFound AND automatic download is available
-            If meta IsNot Nothing AndAlso meta.Status = FirmwareManagerService.FirmwareStatus.NotFound AndAlso FirmwareDownloadModule.IsDownloadAvailable(version) Then
-                Await DownloadAndExtractFirmwareAsync(version)
+            If meta IsNot Nothing AndAlso meta.Status = FirmwareManagerService.FirmwareStatus.NotFound AndAlso FirmwareDownloadModule.IsDownloadAvailable(Fversion) Then
+                Await DownloadAndExtractFirmwareAsync(Fversion)
             End If
         Next
 

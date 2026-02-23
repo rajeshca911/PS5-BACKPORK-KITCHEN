@@ -247,10 +247,21 @@ Public Class Form1
             MessageBox.Show($"Error cleaning temp folder: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
     End Sub
-
+    Private Sub deletefile(fname As String)
+        'delete file if exists
+        On Error Resume Next
+        If System.IO.File.Exists(fname) Then
+            System.IO.File.Delete(fname)
+        End If
+    End Sub
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
+        'delete applog
+        deletefile("app.log")
+        deletefile("backpork_log.txt")
+
 
         updatestatus("Initializing..", 2)
+        InitializeElfLog()
         ' Initialize new v1.2.0 services
         InitializeAdvancedFeatures()
 
@@ -315,7 +326,7 @@ Public Class Form1
             fbd.Description = "Select folder containing ELF files to patch"
             If fbd.ShowDialog() <> DialogResult.OK Then Return
             'check Selected folder name starting with "PPSA"
-            Dim folder4letters = Path.GetFileName(fbd.SelectedPath).Substring(0, 4)
+            'Dim folder4letters = Path.GetFileName(fbd.SelectedPath).Substring(0, 4)
             'If Not folder4letters = "PPSA" Then
             '    MessageBox.Show("Selected folder does not appear to be a valid PS5 homebrew application folder (folder name should start with 'PPSA'). Please select the correct folder.", "Invalid Folder", MessageBoxButtons.OK, MessageBoxIcon.Error)
             '    updatestatus()
@@ -384,12 +395,12 @@ Public Class Form1
         End Try
         updatestatus("Downloading SelfUtil", 2)
         Logger.Log(RichGameInfo, $"Checking for SelfUtils", Color.Purple, False)
-        Try
-            Await DownloadSelfUtil()
-        Catch ex As Exception
-            Logger.Log(rtbStatus, $"SelfUtil download failed: {ex.Message}", Color.Red)
-            MessageBox.Show("Selfutil downloading failed")
-        End Try
+        'Try
+        '    Await DownloadSelfUtil()
+        'Catch ex As Exception
+        '    Logger.Log(rtbStatus, $"SelfUtil download failed: {ex.Message}", Color.Red)
+        '    MessageBox.Show("Selfutil downloading failed")
+        'End Try
         'Await DownloadAllStandaloneAsync()
         Me.Refresh()
         updatestatus("Downloading Libs", 2)

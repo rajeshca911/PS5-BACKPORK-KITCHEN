@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "description": "BPS patch database for PS5 PRX backporting — maps (fw_from, fw_to, lib) to patch files.",
+  "patches": [
+    {
+      "fw_from": "7.61",
+      "fw_to": "10.01",
+      "lib": "libSceNpAuth.sprx",
+      "patch": "patches/libSceNpAuth_761_to_1001.bps",
+      "sha256_source": "",
+      "sha256_target": ""
+    }
+  ]
+}
