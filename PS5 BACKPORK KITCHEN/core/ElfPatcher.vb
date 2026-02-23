@@ -60,7 +60,8 @@ Public Class ElfPatcher
 
 
         Dim info = ElfInspector.ReadInfo(filePath)
-        Logger.Log(Form1.rtbStatus, $"Elf: {filePath}", Color.Purple)
+        ' Service layer handles logging — no UI references here
+        ' Logger.Log(Form1.rtbStatus, $"Elf: {filePath}", Color.Purple)
         If Not info.IsPatchable Then
             logMessage = "Skipped (not patchable)"
             Return PatchStatus.Skipped

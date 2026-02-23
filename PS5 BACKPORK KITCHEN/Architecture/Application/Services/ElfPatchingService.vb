@@ -63,11 +63,23 @@ Namespace Architecture.Application.Services
         Public fileStatusList As New List(Of String)
         Private ReadOnly _fileSystem As IFileSystem
         Private ReadOnly _logger As ILogger
+        Private ReadOnly _enableLibcPatch As Boolean
+        Private ReadOnly _errorLog As New List(Of PipelineError)
 
-        Public Sub New(fileSystem As IFileSystem, logger As ILogger)
+        Public Sub New(fileSystem As IFileSystem, logger As ILogger, Optional enableLibcPatch As Boolean = False)
             _fileSystem = fileSystem
             _logger = logger
+            _enableLibcPatch = enableLibcPatch
         End Sub
+
+        Public Structure PipelineError
+            Public Stage As String
+            Public FilePath As String
+            Public Message As String
+            Public StackTrace As String
+            Public Timestamp As DateTime
+            Public Context As Dictionary(Of String, String)
+        End Structure
 
         Public Async Function PatchFileAsync(filePath As String, targetSdk As Long, cancellationToken As Threading.CancellationToken) As Task(Of Result(Of PatchResult)) _
             Implements IElfPatchingService.PatchFileAsync
@@ -84,143 +96,157 @@ Namespace Architecture.Application.Services
                     Return Result(Of PatchResult).Fail(New FileNotFoundError(filePath))
                 End If
 
-                ' ---------- STEP 1: Ensure file is decrypted ELF ----------
+                ' ---------- STEP 1: Detect file type (SELF / ELF / StrippedELF) ----------
 
-                Dim workingPath As String = filePath
+                Dim fileData As Byte() = IO.File.ReadAllBytes(filePath)
+                Dim fileType As String = selfutilmodule.GetFileType(fileData)
 
-                If Not IsFileDecrypted(filePath) Then
+                _logger.LogInfo($"File type detected: {fileType} — {filePath}")
+
+                ' ---------- STEP 2: If SELF → decrypt to ELF ----------
+
+                If fileType = "SELF" Then
 
                     _logger.LogInfo($"SELF detected — decrypting: {filePath}")
 
-                    Dim dir = IO.Path.GetDirectoryName(filePath)
-                    Dim base = IO.Path.GetFileNameWithoutExtension(filePath)
-                    Dim ext = IO.Path.GetExtension(filePath)
+                    Dim decDir = IO.Path.GetDirectoryName(filePath)
+                    Dim decBase = IO.Path.GetFileNameWithoutExtension(filePath)
+                    Dim decExt = IO.Path.GetExtension(filePath)
 
-                    Dim tempDecPath = IO.Path.Combine(dir, base & "_tmp_dec" & ext)
+                    Dim tempDecPath = IO.Path.Combine(decDir, decBase & "_tmp_dec" & decExt)
 
                     Dim ok = selfutilmodule.unpackfile(filePath, tempDecPath)
 
                     If Not ok Then
-                        _logger.LogError($"Decrypt failed: {filePath}")
-
+                        LogPipelineError("Decryption", filePath, "SELF decryption failed", New Exception("unpackfile returned false"))
                         Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
                     End If
 
-                    ' overwrite original safely (your original design — correct)
+                    ' Overwrite original with decrypted ELF (working copy strategy)
                     IO.File.Copy(tempDecPath, filePath, True)
                     IO.File.Delete(tempDecPath)
+                    fileData = IO.File.ReadAllBytes(filePath)
 
                     _logger.LogInfo($"Decrypted OK → {filePath}")
 
+                ElseIf fileType = "ELF" OrElse fileType = "StrippedELF" Then
+
+                    _logger.LogInfo($"{fileType} detected — skipping decryption: {filePath}")
+
                 Else
-                    _logger.LogInfo($"Already ELF — skipping decrypt: {filePath}")
+
+                    LogPipelineError("Detection", filePath, $"Unsupported file type: {fileType}", Nothing)
+                    Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
+
                 End If
 
-                ' ---------- Step 2: Ensure ELF (decrypt SELF first) ----------
-                ' Read file info using existing ElfInspector
+                ' ---------- STEP 3: Validate ELF structure ----------
+
+                If Not ValidateElfStructure(fileData, filePath) Then
+                    LogPipelineError("Validation", filePath, "ELF structural validation failed", Nothing)
+                    Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
+                End If
+
+                ' ---------- STEP 4: Read and verify current SDK version ----------
+
                 Dim info = ElfInspector.ReadInfo(filePath)
 
                 If info Is Nothing Then
+                    LogPipelineError("SDKDetection", filePath, "Failed to read ELF info", Nothing)
                     Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
                 End If
 
                 If Not info.IsPatchable Then
+                    LogPipelineError("SDKDetection", filePath, "ELF is not patchable", Nothing)
                     Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
                 End If
 
                 Dim currentSdk = CLng(info.Ps5SdkVersion)
 
                 ' Check if already patched
-                _logger.LogInfo($"SDK check: current={currentSdk} target = {targetSdk}")
+                _logger.LogInfo($"SDK check: current={currentSdk:X} target={targetSdk:X}")
 
-                If currentSdk = targetSdk Then
+                Dim needsPatching As Boolean = (currentSdk <> targetSdk)
 
-                    _logger.LogInfo($"File already patched: {filePath}")
-                    Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
+                If Not needsPatching Then
+                    _logger.LogInfo($"File already at target SDK — skipping patch: {filePath}")
                 End If
 
                 cancellationToken.ThrowIfCancellationRequested()
 
-                ' Patch using existing ElfPatcher
+                ' ---------- STEP 5: Patch ELF headers to target SDK ----------
+
                 Dim logMessage As String = ""
                 Dim targetPs5 = CUInt(targetSdk)
-                Dim targetPs4 = 0UI ' Not used for now
+                Dim targetPs4 = 0UI
 
-                'Dim success = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+                Dim status As PatchStatus = PatchStatus.Skipped
 
-                'If Not success Then
-                '    Return Result(Of PatchResult).Fail(New PatchFailedError(filePath))
-                'End If
-                Dim status = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+                If needsPatching Then
+                    status = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
 
-                Select Case status
+                    If status = PatchStatus.Failed Then
+                        LogPipelineError("Patching", filePath, "ELF patching failed: " & logMessage, Nothing)
+                        Return Result(Of PatchResult).Fail(New PatchFailedError(filePath))
+                    End If
 
-                    Case PatchStatus.Patched
-                        ' ----------  Optional 6xx libc string patch ----------
+                    _logger.LogInfo($"Patch status: {status} — {logMessage}")
+                End If
 
-                        Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
-                        If expermental6xx Then
+                ' ---------- STEP 6: Optional libc.prx string patch (6xx compatibility) ----------
+                ' MUST execute AFTER header patch, BEFORE signing
 
-                            filename = IO.Path.GetFileName(filePath).ToLower()
+                If _enableLibcPatch Then
 
-                            If filename = "libc.prx" Then
-                                _logger.LogInfo("Applying 6xx libc string patch")
+                    Dim libcFilename = IO.Path.GetFileName(filePath).ToLower()
 
-                                PatchPrxString(
-                filePath,
-                Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
-                Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B")
-            )
+                    If libcFilename = "libc.prx" Then
+                        _logger.LogInfo("Applying 6xx libc string patch (before signing)")
 
-
-
-                            End If
-
-                        End If
-
-                        ' ---------- STEP 3: Sign patched ELF back to SELF ----------
-
-                        _logger.LogInfo($"Signing patched file: {filePath}")
-
-                        Dim dir = IO.Path.GetDirectoryName(filePath)
-                        Dim baseName = IO.Path.GetFileNameWithoutExtension(filePath)
-                        Dim tempSelf = IO.Path.Combine(dir, baseName & "_tmp.self")
-
-                        Dim signOptions As New SigningService.SigningOptions()
-
-                        Dim signResult = SigningService.SignElf(
-                            filePath,
-                            tempSelf,
-                            SigningService.SigningType.FreeFakeSign,
-                            signOptions
-                        )
-
-                        If Not signResult.Success Then
-                            _logger.LogError($"Signing failed: {filePath}")
-
-                            Return Result(Of PatchResult).Fail(
-                                New PatchFailedError($"Signing failed")
+                        Try
+                            PatchPrxString(
+                                filePath,
+                                Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
+                                Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B")
                             )
-                        End If
+                        Catch ex As Exception
+                            LogPipelineError("LibcPatch", filePath, "libc string patch failed", ex)
+                            ' Non-fatal, continue to signing
+                        End Try
 
-                        IO.File.Copy(tempSelf, filePath, True)
-                        IO.File.Delete(tempSelf)
+                    End If
 
-                        _logger.LogInfo($"Signed OK → {filePath}")
+                End If
 
+                ' ---------- STEP 7: Re-sign ELF back to SELF *** REQUIRED *** ----------
+                ' Signing is MANDATORY for all files that reached this point
 
+                _logger.LogInfo($"Signing file (mandatory): {filePath}")
 
-                    Case PatchStatus.Skipped
-                        Return Result(Of PatchResult).Fail(
-            New AlreadyPatchedError(filePath, targetSdk)
-        )
+                Dim signDir = IO.Path.GetDirectoryName(filePath)
+                Dim signBaseName = IO.Path.GetFileNameWithoutExtension(filePath)
+                Dim tempSelf = IO.Path.Combine(signDir, signBaseName & "_tmp.self")
 
-                    Case PatchStatus.Failed
-                        Return Result(Of PatchResult).Fail(
-            New PatchFailedError(filePath)
-        )
+                Dim signOptions As New SigningService.SigningOptions()
 
-                End Select
+                Dim signResult = SigningService.SignElf(
+                    filePath,
+                    tempSelf,
+                    SigningService.SigningType.FreeFakeSign,
+                    signOptions
+                )
+
+                If Not signResult.Success Then
+                    LogPipelineError("Signing", filePath, "Signing failed", New Exception(signResult.Message))
+                    Return Result(Of PatchResult).Fail(New PatchFailedError($"Signing failed: {signResult.Message}"))
+                End If
+
+                ' ---------- STEP 8: Overwrite original ONLY AFTER signing succeeds ----------
+
+                IO.File.Copy(tempSelf, filePath, True)
+                IO.File.Delete(tempSelf)
+
+                _logger.LogInfo($"Signed OK → {filePath}")
 
 
                 Dim duration = DateTime.Now - startTime
@@ -286,18 +312,111 @@ Namespace Architecture.Application.Services
                 Return Result(Of Long).Fail(New FileAccessError(filePath, ex))
             End Try
         End Function
-        Public Shared Function IsFileDecrypted(path As String) As Boolean
-            Using fs As New FileStream(path, FileMode.Open, FileAccess.Read)
-                Dim magic(3) As Byte
-                fs.Read(magic, 0, 4)
+        ' ============================================================
+        ' STRUCTURAL ELF VALIDATION
+        ' ============================================================
+        Private Function ValidateElfStructure(fileData As Byte(), filePath As String) As Boolean
+            If fileData Is Nothing OrElse fileData.Length < 64 Then
+                _logger.LogError($"File too small to be valid ELF: {filePath}")
+                Return False
+            End If
 
-                ' ELF magic = 7F 45 4C 46
-                Return magic(0) = &H7F AndAlso
-                       magic(1) = &H45 AndAlso
-                       magic(2) = &H4C AndAlso
-                       magic(3) = &H46
-            End Using
+            Try
+                ' Use the robust validation from selfutilmodule
+                Dim fileType = selfutilmodule.GetFileType(fileData)
+
+                If fileType = "ELF" OrElse fileType = "StrippedELF" Then
+                    _logger.LogInfo($"ELF structure validated: {fileType}")
+                    Return True
+                End If
+
+                _logger.LogError($"Invalid ELF structure: {fileType}")
+                Return False
+
+            Catch ex As Exception
+                _logger.LogError($"ELF validation exception: {ex.Message}")
+                Return False
+            End Try
         End Function
+
+        ' ============================================================
+        ' ERROR LOGGING & REPORTING
+        ' ============================================================
+        Private Sub LogPipelineError(stage As String, filePath As String, message As String, ex As Exception)
+            Dim err As New PipelineError With {
+                .Stage = stage,
+                .FilePath = filePath,
+                .Message = message,
+                .StackTrace = If(ex IsNot Nothing, ex.StackTrace, ""),
+                .Timestamp = DateTime.Now,
+                .Context = New Dictionary(Of String, String)()
+            }
+
+            ' Add exception details if present
+            If ex IsNot Nothing Then
+                err.Context("ExceptionType") = ex.GetType().FullName
+                err.Context("ExceptionMessage") = ex.Message
+                If ex.InnerException IsNot Nothing Then
+                    err.Context("InnerException") = ex.InnerException.Message
+                End If
+            End If
+
+            _errorLog.Add(err)
+            _logger.LogError($"[{stage}] {message} — {filePath}")
+
+            If ex IsNot Nothing AndAlso Not String.IsNullOrEmpty(ex.StackTrace) Then
+                _logger.LogError($"Stack trace: {ex.StackTrace.Substring(0, Math.Min(200, ex.StackTrace.Length))}")
+            End If
+        End Sub
+
+        Public Function GenerateErrorReport() As String
+            If _errorLog.Count = 0 Then
+                Return "No errors encountered during pipeline execution."
+            End If
+
+            Dim sb As New StringBuilder()
+            sb.AppendLine("============================================================")
+            sb.AppendLine($"PIPELINE ERROR REPORT — {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+            sb.AppendLine("============================================================")
+            sb.AppendLine()
+            sb.AppendLine($"Total Errors: {_errorLog.Count}")
+            sb.AppendLine()
+
+            For i As Integer = 0 To _errorLog.Count - 1
+                Dim err = _errorLog(i)
+                sb.AppendLine($"[{i + 1}] {err.Stage} — {err.Timestamp:HH:mm:ss}")
+                sb.AppendLine($"    File: {err.FilePath}")
+                sb.AppendLine($"    Message: {err.Message}")
+
+                If err.Context.Count > 0 Then
+                    sb.AppendLine("    Context:")
+                    For Each kvp In err.Context
+                        sb.AppendLine($"      - {kvp.Key}: {kvp.Value}")
+                    Next
+                End If
+
+                If Not String.IsNullOrEmpty(err.StackTrace) Then
+                    sb.AppendLine("    Stack Trace:")
+                    sb.AppendLine(err.StackTrace.Replace(vbCrLf, vbCrLf & "      "))
+                End If
+
+                sb.AppendLine()
+            Next
+
+            sb.AppendLine("============================================================")
+            Return sb.ToString()
+        End Function
+
+        Public Sub SaveErrorReportToFile(outputPath As String)
+            Try
+                Dim report = GenerateErrorReport()
+                IO.File.WriteAllText(outputPath, report)
+                _logger.LogInfo($"Error report saved: {outputPath}")
+            Catch ex As Exception
+                _logger.LogError($"Failed to save error report: {ex.Message}")
+            End Try
+        End Sub
 
     End Class
 End Namespace
+
