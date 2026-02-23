@@ -63,10 +63,11 @@ Namespace Architecture.Application.Services
         Public fileStatusList As New List(Of String)
         Private ReadOnly _fileSystem As IFileSystem
         Private ReadOnly _logger As ILogger
-
+        Private ReadOnly _enableLibcPatch As Boolean
         Public Sub New(fileSystem As IFileSystem, logger As ILogger)
             _fileSystem = fileSystem
             _logger = logger
+            _enableLibcPatch = Form1.chklibcpatch.Checked
         End Sub
 
         Public Async Function PatchFileAsync(filePath As String, targetSdk As Long, cancellationToken As Threading.CancellationToken) As Task(Of Result(Of PatchResult)) _
@@ -158,26 +159,17 @@ Namespace Architecture.Application.Services
                     Case PatchStatus.Patched
                         ' ----------  Optional 6xx libc string patch ----------
 
-                        Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
-                        If expermental6xx Then
-
+                        'Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
+                        If _enableLibcPatch Then
                             filename = IO.Path.GetFileName(filePath).ToLower()
-
                             If filename = "libc.prx" Then
                                 _logger.LogInfo("Applying 6xx libc string patch")
-
-                                PatchPrxString(
-                filePath,
-                Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
-                Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B")
-            )
-
-
-
+                                PatchPrxString(filePath, Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
+                                               Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B"))
                             End If
 
                         End If
-
+                        ' ---------- MANDATORY STEP ----------
                         ' ---------- STEP 3: Sign patched ELF back to SELF ----------
 
                         _logger.LogInfo($"Signing patched file: {filePath}")

@@ -1,0 +1,88 @@
+﻿' ============================================================
+' PS5 ELF / SELF PATCH PIPELINE — STRICT EXECUTION CONTRACT
+' ============================================================
+'
+' This service implements the REQUIRED binary patch workflow.
+' The order of operations is CRITICAL.
+'
+' ⚠ DO NOT reorder, remove, or merge steps without review.
+' Incorrect sequencing WILL produce broken or unloadable binaries.
+'
+' ============================================================
+' REQUIRED EXECUTION ORDER (MANDATORY)
+' ============================================================
+'
+' 1. Detect file type:
+'    • SELF
+'    • ELF
+'    • Stripped / invalid ELF
+'
+' 2. If file is SELF:
+'    → Decrypt to valid ELF before continuing.
+'
+' 3. Validate ELF structure:
+'    • Confirm ELF magic
+'    • Confirm not stripped
+'    • Confirm patchable layout
+'
+' 4. Read and verify current SDK version.
+'
+' 5. Patch ELF headers to target SDK.
+'
+' 6. Optional libc.prx string patch (6xx compatibility)
+'    • MUST execute AFTER header patch
+'    • MUST execute BEFORE signing
+'
+' 7. Re-sign patched ELF back to SELF   *** REQUIRED ***
+'    • Signing is NOT optional
+'    • Never return unsigned output
+'
+' 8. Overwrite original file ONLY AFTER:
+'    • Patch succeeds
+'    • Signing succeeds
+'
+' ============================================================
+' ABSOLUTE RULES
+' ============================================================
+'
+' • Never return a patched file without re-signing.
+' • Never sign before patching.
+' • Never apply libc patch after signing.
+' • Never overwrite the original file before signing succeeds.
+' • Never remove SELF detection (many inputs are encrypted).
+' • Never move signing into Catch or Finally blocks.
+' • Never partially modify the original file mid-process.
+'
+' ============================================================
+' FAILURE SAFETY REQUIREMENTS
+' ============================================================
+'
+' • If patching fails → original file MUST remain unchanged.
+' • If signing fails → original file MUST remain unchanged.
+' • If cancellation occurs → original file MUST remain unchanged.
+'
+' All modifications must occur on a working copy.
+' Replacement must be atomic.
+'
+' ============================================================
+' SERVICE LAYER RULES
+' ============================================================
+'
+' • No UI references (Form1, controls, etc.).
+' • Feature flags must be passed via options or constructor.
+' • Logging is allowed.
+' • Business logic must remain UI-independent.
+'
+' ============================================================
+' TEST MATRIX (must pass before merge)
+' ============================================================
+'
+' □ SELF input → decrypt → patch → sign → loads
+' □ ELF input → patch → sign → loads
+' □ Already patched → skipped safely
+' □ libc.prx + flag → string patch applied before signing
+' □ Patch failure → original unchanged
+' □ Signing failure → original unchanged
+' □ Cancellation → original unchanged
+'
+' ============================================================
