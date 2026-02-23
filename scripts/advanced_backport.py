@@ -29,6 +29,8 @@ import struct
 import subprocess
 import sys
 import time
+import traceback
+from datetime import datetime
 from pathlib import Path
 
 
@@ -57,6 +59,75 @@ def _ensure_deps():
 
 
 _ensure_deps()
+
+
+# ---------------------------------------------------------------------------
+# Advanced Error Tracking
+# ---------------------------------------------------------------------------
+
+class PipelineError:
+    """Structured error information with stack trace and context."""
+    def __init__(self, stage: str, file_path: str, message: str,
+                 exception: Exception = None, context: dict = None):
+        self.stage = stage
+        self.file_path = file_path
+        self.message = message
+        self.timestamp = datetime.now()
+        self.exception_type = type(exception).__name__ if exception else None
+        self.exception_message = str(exception) if exception else None
+        self.stack_trace = traceback.format_exc() if exception else None
+        self.context = context or {}
+
+    def to_dict(self):
+        return {
+            "stage": self.stage,
+            "file_path": self.file_path,
+            "message": self.message,
+            "timestamp": self.timestamp.isoformat(),
+            "exception_type": self.exception_type,
+            "exception_message": self.exception_message,
+            "stack_trace": self.stack_trace,
+            "context": self.context
+        }
+
+
+def generate_error_report(errors: list[PipelineError]) -> str:
+    """Generate a detailed error report with stack traces."""
+    if not errors:
+        return "No errors encountered during pipeline execution."
+
+    lines = []
+    lines.append("=" * 60)
+    lines.append(f"PIPELINE ERROR REPORT — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("=" * 60)
+    lines.append("")
+    lines.append(f"Total Errors: {len(errors)}")
+    lines.append("")
+
+    for i, err in enumerate(errors, 1):
+        lines.append(f"[{i}] {err.stage} — {err.timestamp.strftime('%H:%M:%S')}")
+        lines.append(f"    File: {err.file_path}")
+        lines.append(f"    Message: {err.message}")
+
+        if err.exception_type:
+            lines.append(f"    Exception: {err.exception_type}")
+        if err.exception_message:
+            lines.append(f"    Details: {err.exception_message}")
+
+        if err.context:
+            lines.append("    Context:")
+            for key, val in err.context.items():
+                lines.append(f"      - {key}: {val}")
+
+        if err.stack_trace and err.stack_trace != "NoneType: None\n":
+            lines.append("    Stack Trace:")
+            for line in err.stack_trace.splitlines():
+                lines.append(f"      {line}")
+
+        lines.append("")
+
+    lines.append("=" * 60)
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +352,7 @@ TARGET_EXTENSIONS = (".sprx", ".prx", ".bin")
 class BackportPipeline:
     def __init__(self, args):
         self.args = args
+        self._error_log = []  # List of PipelineError objects
         self.results = {
             "game_folder":   args.game_folder,
             "fw_current":    args.fw_current,
@@ -299,6 +371,38 @@ class BackportPipeline:
             "total_time_s":  0.0,
         }
         self._work_folder = args.output_folder or args.game_folder
+
+    # ---- Error Logging -----------------------------------------------
+
+    def _log_error(self, stage: str, file_path: str, message: str,
+                   exception: Exception = None, context: dict = None):
+        """Log a pipeline error with full diagnostic information."""
+        err = PipelineError(stage, file_path, message, exception, context)
+        self._error_log.append(err)
+        self.results["errors"].append(err.to_dict())
+
+        # Console output
+        _log(f"  [ERROR-{stage}] {message} — {file_path}", RED)
+        if exception:
+            _log(f"    {type(exception).__name__}: {exception}", RED)
+            if hasattr(exception, '__traceback__'):
+                tb_lines = traceback.format_tb(exception.__traceback__)
+                for line in tb_lines[-2:]:  # Last 2 frames
+                    _log(f"    {line.strip()}", DIM)
+
+    def _save_error_report(self):
+        """Save detailed error report to file."""
+        if not self._error_log:
+            return
+
+        report_path = os.path.join(self._work_folder, "backport_errors.log")
+        try:
+            report = generate_error_report(self._error_log)
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(report)
+            _log(f"[ABP] Error report saved: {report_path}", YELLOW)
+        except Exception as ex:
+            _log(f"[ABP] Failed to save error report: {ex}", RED)
 
     # ---- Step 0: Collect files ----------------------------------------
 
@@ -349,11 +453,13 @@ class BackportPipeline:
                     _log("  [DECRYPT] {} — OK".format(fname), GREEN)
                 else:
                     err = proc.stderr[:200].strip() if proc.stderr else "unknown"
-                    _log("  [DECRYPT] {} — FAILED: {}".format(fname, err), YELLOW)
-            except subprocess.TimeoutExpired:
-                _log("  [DECRYPT] {} — timed out (file may be unsupported or corrupted)".format(fname), YELLOW)
+                    self._log_error("Decryption", fpath, f"selfutil failed: {err}",
+                                   context={"returncode": proc.returncode})
+            except subprocess.TimeoutExpired as ex:
+                self._log_error("Decryption", fpath,
+                               "selfutil timed out (file may be unsupported)", ex)
             except Exception as ex:
-                _log("  [DECRYPT] {} — error: {}".format(fname, ex), YELLOW)
+                self._log_error("Decryption", fpath, "selfutil error", ex)
 
         if len(mapping) == 0:
             _log("  All {} files are already plain ELF — no decryption needed".format(
@@ -1132,6 +1238,10 @@ class BackportPipeline:
             self.results["zip_path"] = zip_path
 
         self.results["total_time_s"] = round(time.time() - t0, 2)
+
+        # Save detailed error report if errors occurred
+        self._save_error_report()
+
         return self.results
 
     def create_output_zip(self, files: list[str]):
