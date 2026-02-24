@@ -39,15 +39,39 @@ Public Class OperationModeForm
 
     ' Properties
     Private _signingOptions As SigningService.SigningOptions
-
     Private _selectedSigningType As SigningService.SigningType = SigningService.SigningType.FreeFakeSign
+    Private _gameFolder As String = ""
+    Private _picCover As PictureBox
+    Private _lblGameTitle As Label
 
     Public Sub New()
         Me.AutoScaleMode = AutoScaleMode.Dpi
         Me.AutoScaleDimensions = New SizeF(96, 96)
-
         InitializeComponent()
         _signingOptions = New SigningService.SigningOptions()
+    End Sub
+
+    ''' <summary>
+    ''' Sets the game folder to display cover art and game info in the header.
+    ''' Call before ShowDialog().
+    ''' </summary>
+    Public Sub SetGameContext(gameFolder As String, gameTitle As String)
+        _gameFolder = gameFolder
+
+        If _picCover Is Nothing OrElse _lblGameTitle Is Nothing Then Return
+
+        _lblGameTitle.Text = If(String.IsNullOrEmpty(gameTitle), IO.Path.GetFileName(gameFolder), gameTitle)
+
+        Dim iconPath = IO.Path.Combine(gameFolder, "sce_sys", "icon0.png")
+        If IO.File.Exists(iconPath) Then
+            Try
+                _picCover.Image = Image.FromFile(iconPath)
+            Catch
+                _picCover.Image = My.Resources.game_controller
+            End Try
+        Else
+            _picCover.Image = My.Resources.game_controller
+        End If
     End Sub
 
     'Private Sub InitializeComponent()
@@ -281,11 +305,11 @@ Public Class OperationModeForm
         Dim root As New TableLayoutPanel With {
         .Dock = DockStyle.Fill,
         .ColumnCount = 1,
-        .RowCount = 6,
+        .RowCount = 7,
         .Padding = New Padding(12)
     }
 
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' title
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' title + cover art header
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' mode
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' files
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' signing
@@ -294,15 +318,41 @@ Public Class OperationModeForm
 
         Me.Controls.Add(root)
 
-        ' ===== TITLE =====
-        Dim lblTitle As New Label With {
-        .Text = "🔧 Advanced Signing Operations",
-        .Font = New Font("Segoe UI", 14, FontStyle.Bold),
-        .AutoSize = True,
-        .ForeColor = Color.DarkBlue
-    }
+        ' ===== HEADER (cover art + title) =====
+        Dim headerPanel As New Panel With {
+            .Dock = DockStyle.Fill,
+            .Height = 80,
+            .BackColor = Color.FromArgb(25, 25, 45),
+            .Padding = New Padding(6)
+        }
 
-        root.Controls.Add(lblTitle)
+        _picCover = New PictureBox With {
+            .Size = New Size(68, 68),
+            .Location = New Point(6, 6),
+            .SizeMode = PictureBoxSizeMode.Zoom,
+            .BackColor = Color.FromArgb(40, 40, 60),
+            .Image = My.Resources.game_controller
+        }
+
+        Dim lblTitle As New Label With {
+            .Text = "Advanced Operations - ELF Signing",
+            .Font = New Font("Segoe UI", 13, FontStyle.Bold),
+            .ForeColor = Color.White,
+            .Location = New Point(82, 8),
+            .AutoSize = True
+        }
+
+        _lblGameTitle = New Label With {
+            .Text = "",
+            .Font = New Font("Segoe UI", 9),
+            .ForeColor = Color.LightSkyBlue,
+            .Location = New Point(82, 38),
+            .AutoSize = True
+        }
+
+        headerPanel.Controls.AddRange({_picCover, lblTitle, _lblGameTitle})
+        headerPanel.Height = 80
+        root.Controls.Add(headerPanel)
 
         ' ===== MODE GROUP =====
         grpOperationMode = BuildModeGroup()

@@ -1398,6 +1398,11 @@ Public Class Form1
     Private Sub showadvancedoperations()
         Try
             Using frm As New OperationModeForm()
+                ' Pass current game context so the form shows cover art + game name
+                Dim folder = Txtpath.Text
+                If Not String.IsNullOrEmpty(folder) AndAlso Directory.Exists(folder) Then
+                    frm.SetGameContext(folder, gamename)
+                End If
                 frm.ShowDialog()
             End Using
         Catch ex As Exception
