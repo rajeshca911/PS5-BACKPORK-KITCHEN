@@ -37,15 +37,30 @@ Namespace Services.GameSearch
         Public Sub New()
             Dim handler As New HttpClientHandler With {
                 .AllowAutoRedirect = True,
-                .AutomaticDecompression = DecompressionMethods.GZip Or DecompressionMethods.Deflate
+                .AutomaticDecompression = DecompressionMethods.GZip Or DecompressionMethods.Deflate,
+                .CookieContainer = New Net.CookieContainer(),
+                .UseCookies = True
             }
             _httpClient = New HttpClient(handler)
+            ' Chrome 131 fingerprint headers — required to bypass Cloudflare bot detection
             _httpClient.DefaultRequestHeaders.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             _httpClient.DefaultRequestHeaders.Add("Accept",
-                "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
             _httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9")
-            _httpClient.Timeout = TimeSpan.FromSeconds(30)
+            _httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br")
+            _httpClient.DefaultRequestHeaders.Add("sec-ch-ua",
+                """Google Chrome"";v=""131"", ""Chromium"";v=""131"", ""Not_A Brand"";v=""24""")
+            _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-mobile", "?0")
+            _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-platform", """Windows""")
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-dest", "document")
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-mode", "navigate")
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-site", "none")
+            _httpClient.DefaultRequestHeaders.Add("sec-fetch-user", "?1")
+            _httpClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1")
+            _httpClient.DefaultRequestHeaders.Add("Cache-Control", "max-age=0")
+            _httpClient.DefaultRequestHeaders.Add("Connection", "keep-alive")
+            _httpClient.Timeout = TimeSpan.FromSeconds(45)
         End Sub
 
         Public ReadOnly Property Name As String Implements IGameSearchProvider.Name
@@ -99,9 +114,12 @@ Namespace Services.GameSearch
                 Dim encodedSearch = Uri.EscapeDataString(searchTerm)
                 Dim searchUrl = $"{BASE_URL}/?s={encodedSearch}"
 
-                Dim response = Await _httpClient.GetAsync(searchUrl, cancellationToken)
+                Dim request As New Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Get, searchUrl)
+                request.Headers.Add("Referer", BASE_URL & "/")
+
+                Dim response = Await _httpClient.SendAsync(request, cancellationToken)
                 If Not response.IsSuccessStatusCode Then
-                    _status.LastError = $"HTTP {CInt(response.StatusCode)}"
+                    _status.LastError = $"HTTP {CInt(response.StatusCode)}: dlpsgame.com blocked the request (Cloudflare)"
                     Return results
                 End If
 

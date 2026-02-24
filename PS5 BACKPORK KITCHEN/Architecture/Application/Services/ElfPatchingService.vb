@@ -84,6 +84,15 @@ Namespace Architecture.Application.Services
                     Return Result(Of PatchResult).Fail(New FileNotFoundError(filePath))
                 End If
 
+                ' ---------- PRE-CHECK: Skip known non-patchable filenames ----------
+                ' These files are Sony-signed and cannot be extracted without retail keys
+                Dim lowerName = IO.Path.GetFileName(filePath).ToLowerInvariant()
+                Dim knownSkipFiles = {"right.sprx", "right.self", "right.bin"}
+                If Array.IndexOf(knownSkipFiles, lowerName) >= 0 Then
+                    _logger.LogInfo($"Known non-patchable file — skipped: {lowerName}")
+                    Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
+                End If
+
                 ' ---------- STEP 1: Ensure file is decrypted ELF ----------
 
                 Dim workingPath As String = filePath
@@ -101,8 +110,15 @@ Namespace Architecture.Application.Services
                     Dim ok = selfutilmodule.unpackfile(filePath, tempDecPath)
 
                     If Not ok Then
-                        _logger.LogError($"Decrypt failed: {filePath}")
+                        ' Check if this file lives in sce_sys — Sony system files can't be decrypted
+                        ' without retail keys, treat as non-patchable (skip) rather than error
+                        Dim normalizedPath = filePath.Replace("\", "/").ToLowerInvariant()
+                        If normalizedPath.Contains("/sce_sys/") OrElse normalizedPath.Contains("/sce_module/") Then
+                            _logger.LogInfo($"System SELF in sce_sys/sce_module — skipped: {IO.Path.GetFileName(filePath)}")
+                            Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
+                        End If
 
+                        _logger.LogError($"Decrypt failed: {filePath}")
                         Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
                     End If
 
