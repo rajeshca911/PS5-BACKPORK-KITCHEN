@@ -24,7 +24,11 @@ Namespace Services.GameSearch
         Private Shared ReadOnly HostDomains As String() = {
             "1fichier.com", "mediafire.com", "www.mediafire.com",
             "gofile.io", "akirabox.com", "vikingfile.com",
-            "rootz.so", "www.rootz.so", "1cloudfile.com"
+            "rootz.so", "www.rootz.so", "1cloudfile.com",
+            "buzzheavier.com", "datanodes.to", "filecrypt.cc",
+            "pixeldrain.com", "cyberfile.is", "uploadhaven.com",
+            "fikper.com", "rapidgator.net", "nitroflare.com",
+            "turbobit.net", "katfile.com", "ddownload.com"
         }
 
         Private _httpClient As HttpClient
@@ -175,55 +179,62 @@ Namespace Services.GameSearch
             Dim results As New List(Of GameSearchResult)
 
             Try
-                ' Pattern: <a href="https://dlpsgame.com/game-slug/">Title</a> within g-col divs
-                ' Also matches links with images followed by title links
-                Dim linkPattern = "<a\s+href=""(https?://dlpsgame\.com/[^""]+/?)""[^>]*>\s*(?:<img[^>]*>)?\s*([^<]*?)\s*</a>"
-                Dim matches = Regex.Matches(html, linkPattern, RegexOptions.IgnoreCase Or RegexOptions.Singleline)
-
                 Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
 
-                For Each m As Match In matches
-                    Dim url = m.Groups(1).Value.Trim()
-                    Dim title = WebUtility.HtmlDecode(m.Groups(2).Value.Trim())
+                ' Pattern 1: article/post links (WordPress standard)
+                Dim patterns As String() = {
+                    "<a\s+href=""(https?://dlpsgame\.com/[^""]+/?)""[^>]*>\s*(?:<img[^>]*>)?\s*([^<]{3,}?)\s*</a>",
+                    "<h\d[^>]*>\s*<a\s+href=""(https?://dlpsgame\.com/[^""]+/?)""[^>]*>([^<]+)</a>\s*</h\d>",
+                    "href=""(https?://dlpsgame\.com/(?!(?:category|tag|author|page|wp-content|feed))[^""]+)"
+                }
 
-                    ' Skip non-game pages (categories, tags, author, page links)
-                    If url.Contains("/category/") OrElse url.Contains("/tag/") OrElse
-                       url.Contains("/author/") OrElse url.Contains("/page/") OrElse
-                       url = BASE_URL & "/" OrElse url = BASE_URL Then
-                        Continue For
-                    End If
+                For Each pattern In patterns
+                    Dim matches = Regex.Matches(html, pattern, RegexOptions.IgnoreCase Or RegexOptions.Singleline)
 
-                    ' Skip duplicate URLs
-                    If seen.Contains(url) Then Continue For
-                    seen.Add(url)
+                    For Each m As Match In matches
+                        Dim url = m.Groups(1).Value.Trim()
+                        Dim title = If(m.Groups.Count > 2, WebUtility.HtmlDecode(m.Groups(2).Value.Trim()), "")
 
-                    ' If title is empty, extract from URL slug
-                    If String.IsNullOrEmpty(title) Then
-                        Dim slug = url.TrimEnd("/"c).Split("/"c).Last()
-                        title = slug.Replace("-", " ")
-                        title = Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(title)
-                    End If
+                        ' Skip non-game pages
+                        If url.Contains("/category/") OrElse url.Contains("/tag/") OrElse
+                           url.Contains("/author/") OrElse url.Contains("/page/") OrElse
+                           url.Contains("/wp-content/") OrElse url.Contains("/feed/") OrElse
+                           url = BASE_URL & "/" OrElse url = BASE_URL Then
+                            Continue For
+                        End If
 
-                    ' Skip very short or meaningless titles
-                    If title.Length < 3 Then Continue For
+                        If seen.Contains(url) Then Continue For
+                        seen.Add(url)
 
-                    ' Detect platform
-                    Dim platform = ""
-                    Dim upperTitle = title.ToUpper()
-                    If upperTitle.Contains("PS5") OrElse url.Contains("-ps5") Then
-                        platform = "PS5"
-                    ElseIf upperTitle.Contains("PS4") OrElse url.Contains("-ps4") Then
-                        platform = "PS4"
-                    End If
+                        ' Extract title from URL slug if missing
+                        If String.IsNullOrEmpty(title) OrElse title.Length < 3 Then
+                            Dim slug = url.TrimEnd("/"c).Split("/"c).Last()
+                            title = slug.Replace("-", " ").Replace("_", " ")
+                            title = Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(title)
+                        End If
 
-                    results.Add(New GameSearchResult With {
-                        .Title = title,
-                        .DetailsUrl = url,
-                        .SourceProvider = DisplayName,
-                        .Platform = platform,
-                        .Category = "Game"
-                    })
+                        If title.Length < 3 Then Continue For
+
+                        Dim platform = ""
+                        Dim upperTitle = title.ToUpper()
+                        If upperTitle.Contains("PS5") OrElse url.Contains("-ps5") Then
+                            platform = "PS5"
+                        ElseIf upperTitle.Contains("PS4") OrElse url.Contains("-ps4") Then
+                            platform = "PS4"
+                        End If
+
+                        results.Add(New GameSearchResult With {
+                            .Title = title,
+                            .DetailsUrl = url,
+                            .SourceProvider = DisplayName,
+                            .Platform = platform,
+                            .Category = "Game"
+                        })
+                    Next
+
+                    If results.Count > 0 Then Exit For ' Stop at first working pattern
                 Next
+
             Catch ex As Exception
                 _status.LastError = $"Parse error: {ex.Message}"
             End Try
@@ -253,14 +264,19 @@ Namespace Services.GameSearch
                 gameTitle = WebUtility.HtmlDecode(titleMatch.Groups(1).Value.Trim())
             End If
 
-            ' Extract region/PKG ID
-            Dim pkgIdMatch = Regex.Match(html, "((?:PPSA|CUSA)\d{5})\s*[-–]\s*(USA|EUR|JPN|ASIA|JP)", RegexOptions.IgnoreCase)
-            Dim region = If(pkgIdMatch.Success, pkgIdMatch.Groups(2).Value.ToUpper(), listing.Region)
+            ' Extract region/PKG ID (multiple formats)
+            Dim pkgIdMatch = Regex.Match(html,
+                "((?:PPSA|CUSA)\d{5})\s*[-–]?\s*(USA|EUR|JPN|ASIA|JP|EU|US)?",
+                RegexOptions.IgnoreCase)
+            Dim region = If(pkgIdMatch.Success AndAlso pkgIdMatch.Groups(2).Success,
+                           pkgIdMatch.Groups(2).Value.ToUpper(), listing.Region)
             Dim pkgId = If(pkgIdMatch.Success, pkgIdMatch.Groups(1).Value, "")
 
-            ' Extract firmware requirement
-            Dim fwMatch = Regex.Match(html, "Works\s+on\s+(\d+)\.xx\s+and\s+higher", RegexOptions.IgnoreCase)
-            Dim firmware = If(fwMatch.Success, $"{fwMatch.Groups(1).Value}.00", "")
+            ' Extract firmware requirement (multiple formats)
+            Dim fwMatch = Regex.Match(html,
+                "(?:Works\s+on|Firmware|FW|Requires?)[^0-9]*(\d+\.\d+)",
+                RegexOptions.IgnoreCase)
+            Dim firmware = If(fwMatch.Success, fwMatch.Groups(1).Value, "")
 
             ' Extract genre
             Dim genreMatch = Regex.Match(html, "GENRE\s*:\s*([^\r\n<]+)", RegexOptions.IgnoreCase)

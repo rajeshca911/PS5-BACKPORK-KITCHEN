@@ -263,6 +263,16 @@ Public Class SelfFile
                 Dim dstOffset As Integer =
                 CInt(ph.p_offset)
 
+                ' Bounds check before copy to prevent crash on non-standard SELF files
+                If srcOffset < 0 OrElse
+                   CInt(ph.p_filesz) <= 0 OrElse
+                   srcOffset + CInt(ph.p_filesz) > _data.Length OrElse
+                   dstOffset < 0 OrElse
+                   dstOffset + CInt(ph.p_filesz) > output.Length Then
+                    Logger.LogToFile($"[ExtractElf] PT_SCE_VERSION bounds check failed — skipping segment (srcOff=0x{srcOffset:X} dstOff=0x{dstOffset:X} size=0x{ph.p_filesz:X})", LogLevel.Info)
+                    Exit For
+                End If
+
                 Array.Copy(_data, srcOffset, output, dstOffset, CInt(ph.p_filesz))
 
                 Logger.LogToFile($"segment address: 0x{srcOffset:X}", LogLevel.Info)

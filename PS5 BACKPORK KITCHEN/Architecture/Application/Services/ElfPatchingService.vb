@@ -124,8 +124,11 @@ Namespace Architecture.Application.Services
                     Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
                 End If
 
+                ' Non-patchable = no PT_SCE_PROCPARAM segment (e.g. stripped libs, fmod, face libs)
+                ' This is NOT an error — skip gracefully
                 If Not info.IsPatchable Then
-                    Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
+                    _logger.LogInfo($"No patchable SDK segment — skipped: {IO.Path.GetFileName(filePath)}")
+                    Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
                 End If
 
                 Dim currentSdk = CLng(info.Ps5SdkVersion)
