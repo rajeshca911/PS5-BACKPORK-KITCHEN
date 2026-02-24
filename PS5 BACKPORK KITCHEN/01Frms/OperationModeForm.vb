@@ -298,6 +298,7 @@ Public Class OperationModeForm
 
         Me.Text = "Advanced Operations - ELF Signing"
         Me.MinimumSize = New Size(720, 720)
+        Me.Size = New Size(750, 820)
         Me.StartPosition = FormStartPosition.CenterParent
         Me.Icon = Form1.Icon
 
@@ -319,9 +320,11 @@ Public Class OperationModeForm
         Me.Controls.Add(root)
 
         ' ===== HEADER (cover art + title) =====
-        ' Use FlowLayoutPanel to avoid Dock conflicts inside TableLayoutPanel
+        ' NOTE: Do NOT set Dock=Fill on an AutoSize=True control inside a TableLayoutPanel
+        ' AutoSize row — it creates a circular dependency and causes StackOverflow.
+        ' Use Anchor instead to stretch horizontally.
         Dim headerFlow As New FlowLayoutPanel With {
-            .Dock = DockStyle.Fill,
+            .Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Top,
             .BackColor = Color.FromArgb(25, 25, 45),
             .Padding = New Padding(4),
             .FlowDirection = FlowDirection.LeftToRight,
@@ -385,11 +388,12 @@ Public Class OperationModeForm
         root.Controls.Add(grpProgress)
 
         ' ===== BUTTON BAR =====
+        ' Same rule: no Dock=Fill in AutoSize rows with AutoSize=True controls
         Dim buttonFlow As New FlowLayoutPanel With {
-        .Dock = DockStyle.Fill,
-        .FlowDirection = FlowDirection.RightToLeft,
-        .AutoSize = True
-    }
+            .Anchor = AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Bottom,
+            .FlowDirection = FlowDirection.RightToLeft,
+            .AutoSize = True
+        }
 
         btnStart = New Button With {.Text = "▶️ Start", .Width = 120, .Height = 36, .Enabled = False}
         btnClose = New Button With {.Text = "Close", .Width = 100, .Height = 36}

@@ -2,6 +2,8 @@ Imports System.Collections.Specialized.BitVector32
 Imports System.Net
 Imports System.Net.Http
 Imports System.Text.RegularExpressions
+Imports System.Windows.Forms
+Imports Microsoft.Win32
 
 Namespace Services.GameSearch
 
@@ -114,38 +116,38 @@ Namespace Services.GameSearch
                 Dim encodedSearch = Uri.EscapeDataString(searchTerm)
                 Dim searchUrl = $"{BASE_URL}/?s={encodedSearch}"
 
-                Dim request As New Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Get, searchUrl)
-                request.Headers.Add("Referer", BASE_URL & "/")
-
-                Dim response = Await _httpClient.SendAsync(request, cancellationToken)
+                ' -------- Step 1: try plain HTTP fetch --------
                 Dim html As String = ""
+                Dim cfBlocked As Boolean = True
+                Try
+                    Dim request As New Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Get, searchUrl)
+                    request.Headers.Add("Referer", BASE_URL & "/")
+                    Dim response = Await _httpClient.SendAsync(request, cancellationToken)
+                    If response.IsSuccessStatusCode Then
+                        html = Await response.Content.ReadAsStringAsync()
+                        cfBlocked = html.Contains("Just a moment") OrElse
+                                    html.Contains("cf-browser-verification") OrElse
+                                    html.Contains("_cf_chl")
+                    End If
+                Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                    html = ""
+                    cfBlocked = True
+                End Try
 
-                If response.IsSuccessStatusCode Then
-                    html = Await response.Content.ReadAsStringAsync()
-                End If
-
-                ' Detect Cloudflare JS challenge ("Just a moment...")
-                Dim isCloudflareBlocked = Not response.IsSuccessStatusCode OrElse
-                                          html.Contains("Just a moment") OrElse
-                                          html.Contains("cf-browser-verification") OrElse
-                                          html.Contains("_cf_chl")
-
-                If isCloudflareBlocked Then
-                    _status.LastError = "Cloudflare"
-                    ' Return a placeholder result that opens the search in the browser
-                    results.Add(New GameSearchResult With {
-                        .Title = $"⚠ dlpsgame.com is Cloudflare-protected — Click to search in browser",
-                        .DetailsUrl = searchUrl,
-                        .SourceProvider = DisplayName,
-                        .Platform = "",
-                        .Category = "OpenInBrowser",
-                        .Uploader = searchUrl
-                    })
-                    Return results
+                ' -------- Step 2: Cloudflare detected → use embedded WebBrowser --------
+                ' The built-in WebBrowser/IE engine executes the CF JS challenge automatically.
+                ' This mirrors what real browsers do: load the page, let JS run, get clearance.
+                If cfBlocked Then
+                    _status.LastError = "Cloudflare — trying browser bypass..."
+                    Try
+                        html = Await FetchWithWebBrowserAsync(searchUrl)
+                    Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                        html = ""
+                    End Try
                 End If
 
                 If String.IsNullOrEmpty(html) OrElse html.Length < 500 Then
-                    _status.LastError = "Empty response"
+                    _status.LastError = If(cfBlocked, "Cloudflare bypass failed — try updating app", "Empty response")
                     Return results
                 End If
 
@@ -503,25 +505,128 @@ Namespace Services.GameSearch
 
         Public Async Function TestConnectionAsync() As Task(Of Boolean) Implements IGameSearchProvider.TestConnectionAsync
             Try
+                ' Try plain HTTP first
                 Dim cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(15))
                 Dim req As New Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Get, BASE_URL)
                 req.Headers.Add("Referer", BASE_URL & "/")
                 Dim response = Await _httpClient.SendAsync(req, cts.Token)
                 If response.IsSuccessStatusCode Then
                     Dim body = Await response.Content.ReadAsStringAsync()
-                    ' Detect Cloudflare JS challenge even on 200
-                    If body.Contains("Just a moment") OrElse body.Contains("_cf_chl") Then
-                        _status.LastError = "Cloudflare JS challenge — cannot bypass with HTTP client"
-                        Return False
+                    If Not (body.Contains("Just a moment") OrElse body.Contains("_cf_chl")) Then
+                        _status.LastError = ""
+                        Return True
                     End If
+                End If
+
+                ' HTTP blocked by CF — try browser bypass on the homepage
+                Dim browserHtml = Await FetchWithWebBrowserAsync(BASE_URL)
+                If Not String.IsNullOrEmpty(browserHtml) AndAlso browserHtml.Length > 500 AndAlso
+                   Not browserHtml.Contains("Just a moment") Then
                     _status.LastError = ""
                     Return True
                 End If
-                _status.LastError = $"HTTP {CInt(response.StatusCode)}"
+
+                _status.LastError = "Cloudflare — browser bypass also failed"
             Catch ex As Exception
                 _status.LastError = ex.Message
             End Try
             Return False
+        End Function
+
+        ''' <summary>
+        ''' Uses the embedded WebBrowser (IE/MSHTML) control to load a page and execute its
+        ''' JavaScript — including Cloudflare's "Just a moment" challenge.
+        ''' The CF JS runs automatically inside MSHTML; once the challenge passes the title
+        ''' changes and DocumentCompleted fires with the real page content.
+        '''
+        ''' Must marshal WebBrowser creation to the UI thread (STA).
+        ''' Returns the full HTML after CF clearance, or "" on timeout/error.
+        ''' </summary>
+        Friend Shared Async Function FetchWithWebBrowserAsync(url As String) As Task(Of String)
+            Dim tcs As New TaskCompletionSource(Of String)()
+
+            Dim launchBrowser As Action = Sub()
+                Try
+                    ' Set IE11 browser emulation for this process so CF JS works properly
+                    Try
+                        Dim exeName = System.IO.Path.GetFileName(System.Reflection.Assembly.GetExecutingAssembly().Location)
+                        Using key = Registry.CurrentUser.CreateSubKey(
+                            "SOFTWARE\Microsoft\Internet Explorer\Main\FeatureControl\FEATURE_BROWSER_EMULATION")
+                            If key IsNot Nothing Then
+                                key.SetValue(exeName, 11001, RegistryValueKind.DWord) ' IE11
+                            End If
+                        End Using
+                    Catch
+                        ' Registry write failed — proceed anyway, CF may still work
+                    End Try
+
+                    Dim wb As New WebBrowser() With {
+                        .ScriptErrorsSuppressed = True,
+                        .ScrollBarsEnabled = False,
+                        .Size = New Drawing.Size(1280, 800)
+                    }
+
+                    ' 22-second timeout — CF challenge usually resolves in 5-10 s
+                    Dim timeout As New System.Windows.Forms.Timer() With {.Interval = 22000}
+
+                    Dim cleanedUp As Boolean = False
+                    Dim doCleanup As Action = Sub()
+                        If cleanedUp Then Return
+                        cleanedUp = True
+                        Try : timeout.Stop() : timeout.Dispose() : Catch : End Try
+                        Try : wb.Stop() : wb.Dispose() : Catch : End Try
+                    End Sub
+
+                    AddHandler timeout.Tick, Sub(s, e)
+                        ' Timeout reached — return whatever HTML we have
+                        Dim html As String = ""
+                        Try : html = If(wb.DocumentText, "") : Catch : End Try
+                        doCleanup()
+                        tcs.TrySetResult(html)
+                    End Sub
+
+                    AddHandler wb.DocumentCompleted, Sub(s, e)
+                        ' CF challenge page always has "Just a moment" in the title.
+                        ' Stay patient until it's gone.
+                        Dim title As String = ""
+                        Try : title = If(wb.DocumentTitle, "") : Catch : End Try
+                        If title.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                            Return ' Still on CF challenge — wait for next completion
+                        End If
+
+                        ' Got the real page
+                        Dim html As String = ""
+                        Try : html = If(wb.DocumentText, "") : Catch : End Try
+                        doCleanup()
+                        tcs.TrySetResult(html)
+                    End Sub
+
+                    timeout.Start()
+                    wb.Navigate(url)
+
+                Catch ex As Exception
+                    tcs.TrySetException(ex)
+                End Try
+            End Sub
+
+            ' WebBrowser (MSHTML/IE) requires STA — marshal to the UI thread
+            Dim mainForm As Form = Nothing
+            For Each f As Form In Application.OpenForms
+                If f.IsHandleCreated Then
+                    mainForm = f
+                    Exit For
+                End If
+            Next
+
+            If mainForm IsNot Nothing Then
+                mainForm.Invoke(launchBrowser)   ' synchronous: sets up wb and starts Navigate
+            Else
+                launchBrowser()  ' already on UI thread (e.g., during startup)
+            End If
+
+            ' Await result — the UI message pump continues running while we wait,
+            ' so WebBrowser events (DocumentCompleted) fire normally.
+            Return Await tcs.Task
         End Function
 
         ''' <summary>
