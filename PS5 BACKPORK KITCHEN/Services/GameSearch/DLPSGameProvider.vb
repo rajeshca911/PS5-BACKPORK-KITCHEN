@@ -118,12 +118,32 @@ Namespace Services.GameSearch
                 request.Headers.Add("Referer", BASE_URL & "/")
 
                 Dim response = Await _httpClient.SendAsync(request, cancellationToken)
-                If Not response.IsSuccessStatusCode Then
-                    _status.LastError = $"HTTP {CInt(response.StatusCode)}: dlpsgame.com blocked the request (Cloudflare)"
+                Dim html As String = ""
+
+                If response.IsSuccessStatusCode Then
+                    html = Await response.Content.ReadAsStringAsync()
+                End If
+
+                ' Detect Cloudflare JS challenge ("Just a moment...")
+                Dim isCloudflareBlocked = Not response.IsSuccessStatusCode OrElse
+                                          html.Contains("Just a moment") OrElse
+                                          html.Contains("cf-browser-verification") OrElse
+                                          html.Contains("_cf_chl")
+
+                If isCloudflareBlocked Then
+                    _status.LastError = "Cloudflare"
+                    ' Return a placeholder result that opens the search in the browser
+                    results.Add(New GameSearchResult With {
+                        .Title = $"⚠ dlpsgame.com is Cloudflare-protected — Click to search in browser",
+                        .DetailsUrl = searchUrl,
+                        .SourceProvider = DisplayName,
+                        .Platform = "",
+                        .Category = "OpenInBrowser",
+                        .Uploader = searchUrl
+                    })
                     Return results
                 End If
 
-                Dim html = Await response.Content.ReadAsStringAsync()
                 If String.IsNullOrEmpty(html) OrElse html.Length < 500 Then
                     _status.LastError = "Empty response"
                     Return results
@@ -483,12 +503,21 @@ Namespace Services.GameSearch
 
         Public Async Function TestConnectionAsync() As Task(Of Boolean) Implements IGameSearchProvider.TestConnectionAsync
             Try
-                Dim cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
-                Dim response = Await _httpClient.GetAsync(BASE_URL, cts.Token)
+                Dim cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(15))
+                Dim req As New Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Get, BASE_URL)
+                req.Headers.Add("Referer", BASE_URL & "/")
+                Dim response = Await _httpClient.SendAsync(req, cts.Token)
                 If response.IsSuccessStatusCode Then
+                    Dim body = Await response.Content.ReadAsStringAsync()
+                    ' Detect Cloudflare JS challenge even on 200
+                    If body.Contains("Just a moment") OrElse body.Contains("_cf_chl") Then
+                        _status.LastError = "Cloudflare JS challenge — cannot bypass with HTTP client"
+                        Return False
+                    End If
                     _status.LastError = ""
                     Return True
                 End If
+                _status.LastError = $"HTTP {CInt(response.StatusCode)}"
             Catch ex As Exception
                 _status.LastError = ex.Message
             End Try

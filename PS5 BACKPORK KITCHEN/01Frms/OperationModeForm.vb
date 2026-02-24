@@ -305,11 +305,11 @@ Public Class OperationModeForm
         Dim root As New TableLayoutPanel With {
         .Dock = DockStyle.Fill,
         .ColumnCount = 1,
-        .RowCount = 7,
+        .RowCount = 6,
         .Padding = New Padding(12)
     }
 
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' title + cover art header
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' header (cover art + title)
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' mode
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' files
         root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' signing
@@ -319,26 +319,41 @@ Public Class OperationModeForm
         Me.Controls.Add(root)
 
         ' ===== HEADER (cover art + title) =====
-        Dim headerPanel As New Panel With {
+        ' Use FlowLayoutPanel to avoid Dock conflicts inside TableLayoutPanel
+        Dim headerFlow As New FlowLayoutPanel With {
             .Dock = DockStyle.Fill,
-            .Height = 80,
             .BackColor = Color.FromArgb(25, 25, 45),
-            .Padding = New Padding(6)
+            .Padding = New Padding(4),
+            .FlowDirection = FlowDirection.LeftToRight,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .WrapContents = False
         }
 
         _picCover = New PictureBox With {
-            .Size = New Size(68, 68),
-            .Location = New Point(6, 6),
+            .Size = New Size(64, 64),
             .SizeMode = PictureBoxSizeMode.Zoom,
             .BackColor = Color.FromArgb(40, 40, 60),
-            .Image = My.Resources.game_controller
+            .Margin = New Padding(2)
+        }
+
+        Try
+            _picCover.Image = My.Resources.game_controller
+        Catch
+        End Try
+
+        Dim infoPanel As New FlowLayoutPanel With {
+            .FlowDirection = FlowDirection.TopDown,
+            .AutoSize = True,
+            .BackColor = Color.FromArgb(25, 25, 45),
+            .Padding = New Padding(6, 4, 0, 0),
+            .WrapContents = False
         }
 
         Dim lblTitle As New Label With {
             .Text = "Advanced Operations - ELF Signing",
-            .Font = New Font("Segoe UI", 13, FontStyle.Bold),
+            .Font = New Font("Segoe UI", 12, FontStyle.Bold),
             .ForeColor = Color.White,
-            .Location = New Point(82, 8),
             .AutoSize = True
         }
 
@@ -346,13 +361,12 @@ Public Class OperationModeForm
             .Text = "",
             .Font = New Font("Segoe UI", 9),
             .ForeColor = Color.LightSkyBlue,
-            .Location = New Point(82, 38),
             .AutoSize = True
         }
 
-        headerPanel.Controls.AddRange({_picCover, lblTitle, _lblGameTitle})
-        headerPanel.Height = 80
-        root.Controls.Add(headerPanel)
+        infoPanel.Controls.AddRange({lblTitle, _lblGameTitle})
+        headerFlow.Controls.AddRange({_picCover, infoPanel})
+        root.Controls.Add(headerFlow)
 
         ' ===== MODE GROUP =====
         grpOperationMode = BuildModeGroup()
