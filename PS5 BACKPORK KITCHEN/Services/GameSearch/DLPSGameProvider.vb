@@ -135,32 +135,28 @@ Namespace Services.GameSearch
                     cfBlocked = True
                 End Try
 
-                ' -------- Step 2: Cloudflare detected → use embedded WebBrowser --------
-                ' The built-in WebBrowser/IE engine executes the CF JS challenge automatically.
-                ' This mirrors what real browsers do: load the page, let JS run, get clearance.
+                ' -------- Step 2: Cloudflare detected → use WebView2 JS extraction --------
+                ' WebView2 (Chromium) loads the page, solves the CF challenge, then we
+                ' extract game links directly from the DOM via JavaScript — more reliable
+                ' than regex on serialized HTML.
+                Dim listingResults As New List(Of GameSearchResult)
+
                 If cfBlocked Then
                     _status.LastError = "Cloudflare — trying browser bypass..."
                     Try
-                        html = Await FetchWithWebBrowserAsync(searchUrl)
-                    Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
-                        html = ""
-                    End Try
-                End If
-
-                If String.IsNullOrEmpty(html) OrElse html.Length < 500 Then
-                    _status.LastError = If(cfBlocked, "Cloudflare bypass failed — try updating app", "Empty response")
-                    Return results
-                End If
-
-                ' Parse search listing results from HTML
-                Dim listingResults = ParseListingPage(html)
-
-                ' Fallback: if regex parsing found nothing, try JS-based DOM extraction
-                If listingResults.Count = 0 AndAlso cfBlocked Then
-                    Try
                         listingResults = Await ExtractLinksViaJsAsync(searchUrl)
-                    Catch
+                    Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
                     End Try
+                End If
+
+                ' -------- Step 3: parse HTML (direct HTTP or fallback) --------
+                If listingResults.Count = 0 AndAlso Not String.IsNullOrEmpty(html) AndAlso html.Length >= 500 Then
+                    listingResults = ParseListingPage(html)
+                End If
+
+                If listingResults.Count = 0 Then
+                    _status.LastError = If(cfBlocked, "Cloudflare bypass failed or no results", "No results found")
+                    Return results
                 End If
 
                 ' Filter by platform if requested
@@ -734,16 +730,29 @@ Namespace Services.GameSearch
                             Dim contentReady = (cfClearedAt > 0 AndAlso pollCount >= cfClearedAt + 2)
 
                             If contentReady OrElse pollCount >= 15 Then
-                                ' Extract game links directly from DOM
-                                Dim js = "JSON.stringify(Array.from(document.querySelectorAll(" &
-                                         "'article a[href], h2 a[href], h3 a[href], .entry-title a[href], " &
-                                         ".post-title a[href], a.post-link[href]')).map(a => ({" &
-                                         "u: a.href, t: (a.textContent || '').trim()}))" &
-                                         ".filter(x => x.u.includes('dlpsgame') && " &
-                                         "!x.u.includes('/category/') && !x.u.includes('/tag/') && " &
-                                         "!x.u.includes('/author/') && !x.u.includes('/page/') && " &
-                                         "!x.u.includes('/wp-content/') && !x.u.includes('/feed/') && " &
-                                         "x.u !== 'https://dlpsgame.com/' && x.u !== 'https://dlpsgame.com'))"
+                                ' Extract game links directly from DOM — broad query
+                                ' First try links inside content containers, then fallback to all links
+                                Dim js = "(function(){" &
+                                         "var skip=['/category/','/tag/','/author/','/page/','/wp-content/','/feed/','/wp-json/','/wp-login/','/wp-admin/','#','javascript:'];" &
+                                         "var base='dlpsgame.com';" &
+                                         "var root='https://dlpsgame.com/';" &
+                                         "var seen={}; var res=[];" &
+                                         "var links=document.querySelectorAll('a[href]');" &
+                                         "for(var i=0;i<links.length;i++){" &
+                                         "  var a=links[i]; var h=a.href||'';" &
+                                         "  if(!h.includes(base))continue;" &
+                                         "  if(h===root||h==='https://dlpsgame.com'||h==='https://www.dlpsgame.com/'||h==='https://www.dlpsgame.com')continue;" &
+                                         "  var bad=false;" &
+                                         "  for(var j=0;j<skip.length;j++){if(h.includes(skip[j])){bad=true;break;}}" &
+                                         "  if(bad)continue;" &
+                                         "  var norm=h.replace('://www.','://').replace(/\/$/,'');" &
+                                         "  if(seen[norm])continue; seen[norm]=1;" &
+                                         "  var t=(a.textContent||'').trim().replace(/\s+/g,' ').substring(0,200);" &
+                                         "  if(t.length<3){var parts=norm.split('/');t=parts[parts.length-1].replace(/-/g,' ');}" &
+                                         "  res.push({u:h,t:t});" &
+                                         "}" &
+                                         "return JSON.stringify(res);" &
+                                         "})()"
 
                                 Dim jsResult = Await wv.CoreWebView2.ExecuteScriptAsync(js)
 
