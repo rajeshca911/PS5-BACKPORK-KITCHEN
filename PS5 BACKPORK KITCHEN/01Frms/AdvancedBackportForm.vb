@@ -159,8 +159,52 @@ Public Class AdvancedBackportForm
         Using dlg As New FolderBrowserDialog() With {.Description = "Select game folder containing .sprx/.prx/.bin files"}
             If dlg.ShowDialog() = DialogResult.OK Then
                 txtGameFolder.Text = dlg.SelectedPath
+                DetectGameFirmware(dlg.SelectedPath)
             End If
         End Using
+    End Sub
+
+    ''' <summary>
+    ''' Reads param.json or param.sfo to auto-detect the required firmware version.
+    ''' </summary>
+    Private Sub DetectGameFirmware(gameFolder As String)
+        Try
+            ' Try param.json first (PS5 PKG extracted)
+            Dim paramJson = Path.Combine(gameFolder, "sce_sys", "param.json")
+            If File.Exists(paramJson) Then
+                Dim json = File.ReadAllText(paramJson)
+                Dim fwMatch = System.Text.RegularExpressions.Regex.Match(json,
+                    """requiredSystemSoftwareVersion""\s*:\s*""0x([0-9A-Fa-f]+)""")
+                If fwMatch.Success Then
+                    Dim hexVal = fwMatch.Groups(1).Value
+                    If hexVal.Length >= 8 Then
+                        Dim major = Convert.ToInt32(hexVal.Substring(0, 2), 16)
+                        Dim minor = Convert.ToInt32(hexVal.Substring(2, 2), 16)
+                        Dim fwStr = $"{major}.{minor:D2}"
+                        ' Try to find a matching entry in the dropdown
+                        For i = 0 To cmbFwCurrent.Items.Count - 1
+                            If cmbFwCurrent.Items(i).ToString() = fwStr Then
+                                cmbFwCurrent.SelectedIndex = i
+                                AppendLog($"[ABP] Detected game firmware: {fwStr}", Color.Cyan)
+                                Return
+                            End If
+                        Next
+                        ' No exact match — find closest
+                        Dim detected = Double.Parse(fwStr, Globalization.CultureInfo.InvariantCulture)
+                        For i = cmbFwCurrent.Items.Count - 1 To 0 Step -1
+                            Dim val = Double.Parse(cmbFwCurrent.Items(i).ToString(), Globalization.CultureInfo.InvariantCulture)
+                            If val <= detected Then
+                                cmbFwCurrent.SelectedIndex = i
+                                AppendLog($"[ABP] Detected game firmware: ~{fwStr} (using {cmbFwCurrent.Items(i)})", Color.Cyan)
+                                Return
+                            End If
+                        Next
+                    End If
+                End If
+            End If
+        Catch ex As Exception
+            AppendLog($"[ABP] Could not detect firmware: {ex.Message}", Color.DarkOrange)
+        End Try
     End Sub
 
     Private Async Sub BtnRun_Click(sender As Object, e As EventArgs) Handles btnRun.Click
@@ -297,17 +341,14 @@ Public Class AdvancedBackportForm
     End Function
 
     Private Shared Function ScriptsFolder() As String
-        ' Look for scripts/ relative to the application base directory,
-        ' then one level up (development layout: repo root / scripts).
-        Dim appDir = AppDomain.CurrentDomain.BaseDirectory
-        Dim candidates As String() = {
-            Path.Combine(appDir, "scripts"),
-            Path.Combine(appDir, "..", "scripts"),
-            Path.Combine(appDir, "..", "..", "scripts")
-        }
-        For Each c In candidates
-            Dim full = Path.GetFullPath(c)
-            If Directory.Exists(full) Then Return full
+        ' Walk up from the application base directory to find scripts/
+        Dim dir = AppDomain.CurrentDomain.BaseDirectory
+        For i = 0 To 8
+            Dim candidate = Path.Combine(dir, "scripts")
+            If Directory.Exists(candidate) Then Return Path.GetFullPath(candidate)
+            Dim parent = Directory.GetParent(dir)
+            If parent Is Nothing Then Exit For
+            dir = parent.FullName
         Next
         Return Nothing
     End Function

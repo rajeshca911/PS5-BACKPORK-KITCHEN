@@ -100,7 +100,7 @@ Public Class PythonRunner
             Dim stderrTask = ReadStreamAsync(proc.StandardError, onError, ct)
 
             ' Handle cancellation
-            If ct <> Nothing Then
+            If ct.CanBeCanceled Then
                 ct.Register(Sub()
                                 Try
                                     If Not proc.HasExited Then proc.Kill(entireProcessTree:=True)
@@ -122,7 +122,7 @@ Public Class PythonRunner
     ) As Task
         Dim line As String
         Do
-            If ct <> Nothing AndAlso ct.IsCancellationRequested Then Exit Do
+            If ct.IsCancellationRequested Then Exit Do
             line = Await reader.ReadLineAsync()
             If line Is Nothing Then Exit Do
             callback?.Invoke(line)
