@@ -152,8 +152,16 @@ Namespace Services.GameSearch
                     Return results
                 End If
 
-                ' Parse search listing results
+                ' Parse search listing results from HTML
                 Dim listingResults = ParseListingPage(html)
+
+                ' Fallback: if regex parsing found nothing, try JS-based DOM extraction
+                If listingResults.Count = 0 AndAlso cfBlocked Then
+                    Try
+                        listingResults = Await ExtractLinksViaJsAsync(searchUrl)
+                    Catch
+                    End Try
+                End If
 
                 ' Filter by platform if requested
                 If query.Platform = GamePlatform.PS5 Then
@@ -215,6 +223,7 @@ Namespace Services.GameSearch
 
         ''' <summary>
         ''' Parses the search/category listing page to extract game links and titles.
+        ''' Handles both absolute and relative URLs, single/double quotes.
         ''' </summary>
         Private Function ParseListingPage(html As String) As List(Of GameSearchResult)
             Dim results As New List(Of GameSearchResult)
@@ -222,34 +231,63 @@ Namespace Services.GameSearch
             Try
                 Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
 
-                ' Pattern 1: article/post links (WordPress standard)
+                ' Non-game URL segments to skip
+                Dim skipSegments = {"/category/", "/tag/", "/author/", "/page/",
+                                    "/wp-content/", "/feed/", "/wp-json/", "/wp-login/",
+                                    "/wp-admin/", "/wp-includes/", "/comments/", "#"}
+
+                ' Patterns handle both absolute (https://dlpsgame.com/...) and relative (/...) URLs
+                ' and both double quotes and single quotes
                 Dim patterns As String() = {
-                    "<a\s+href=""(https?://dlpsgame\.com/[^""]+/?)""[^>]*>\s*(?:<img[^>]*>)?\s*([^<]{3,}?)\s*</a>",
-                    "<h\d[^>]*>\s*<a\s+href=""(https?://dlpsgame\.com/[^""]+/?)""[^>]*>([^<]+)</a>\s*</h\d>",
-                    "href=""(https?://dlpsgame\.com/(?!(?:category|tag|author|page|wp-content|feed))[^""]+)"
+                    "<h\d[^>]*>\s*<a\s+[^>]*href=[""']((?:https?://(?:www\.)?dlpsgame\.com)?/[^""']+)[""'][^>]*>\s*([^<]+?)\s*</a>",
+                    "<a\s+[^>]*href=[""']((?:https?://(?:www\.)?dlpsgame\.com)?/[^""']+)[""'][^>]*>\s*(?:<img[^>]*>)?\s*([^<]{3,}?)\s*</a>",
+                    "href=[""'](https?://(?:www\.)?dlpsgame\.com/[^""']+)[""']",
+                    "href=[""'](/[a-z0-9][\w-]*(?:-ps[45])?[\w-]*/?\??[^""']*)[""']"
                 }
 
                 For Each pattern In patterns
                     Dim matches = Regex.Matches(html, pattern, RegexOptions.IgnoreCase Or RegexOptions.Singleline)
 
                     For Each m As Match In matches
-                        Dim url = m.Groups(1).Value.Trim()
-                        Dim title = If(m.Groups.Count > 2, WebUtility.HtmlDecode(m.Groups(2).Value.Trim()), "")
+                        Dim rawUrl = m.Groups(1).Value.Trim()
 
-                        ' Skip non-game pages
-                        If url.Contains("/category/") OrElse url.Contains("/tag/") OrElse
-                           url.Contains("/author/") OrElse url.Contains("/page/") OrElse
-                           url.Contains("/wp-content/") OrElse url.Contains("/feed/") OrElse
-                           url = BASE_URL & "/" OrElse url = BASE_URL Then
+                        ' Normalize relative → absolute
+                        Dim url = rawUrl
+                        If url.StartsWith("/") AndAlso Not url.StartsWith("//") Then
+                            url = BASE_URL & url
+                        End If
+
+                        ' Must be a dlpsgame URL
+                        If Not url.StartsWith("https://dlpsgame.com", StringComparison.OrdinalIgnoreCase) AndAlso
+                           Not url.StartsWith("https://www.dlpsgame.com", StringComparison.OrdinalIgnoreCase) Then
                             Continue For
                         End If
 
-                        If seen.Contains(url) Then Continue For
-                        seen.Add(url)
+                        ' Skip non-game pages
+                        Dim skip = False
+                        For Each seg In skipSegments
+                            If url.IndexOf(seg, StringComparison.OrdinalIgnoreCase) >= 0 Then
+                                skip = True
+                                Exit For
+                            End If
+                        Next
+                        If skip Then Continue For
+
+                        ' Skip root URL
+                        Dim normalized = url.Replace("://www.", "://").TrimEnd("/"c)
+                        If normalized = "https://dlpsgame.com" Then Continue For
+
+                        If seen.Contains(normalized) Then Continue For
+                        seen.Add(normalized)
+
+                        Dim title = If(m.Groups.Count > 2, WebUtility.HtmlDecode(m.Groups(2).Value.Trim()), "")
 
                         ' Extract title from URL slug if missing
                         If String.IsNullOrEmpty(title) OrElse title.Length < 3 Then
                             Dim slug = url.TrimEnd("/"c).Split("/"c).Last()
+                            ' Remove query string
+                            Dim qIdx = slug.IndexOf("?"c)
+                            If qIdx >= 0 Then slug = slug.Substring(0, qIdx)
                             title = slug.Replace("-", " ").Replace("_", " ")
                             title = Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(title)
                         End If
@@ -273,7 +311,7 @@ Namespace Services.GameSearch
                         })
                     Next
 
-                    If results.Count > 0 Then Exit For ' Stop at first working pattern
+                    If results.Count > 0 Then Exit For
                 Next
 
             Catch ex As Exception
@@ -569,6 +607,7 @@ Namespace Services.GameSearch
                     ' Polling timer: every 2s check if CF challenge is done
                     Dim pollTimer As New Timer() With {.Interval = 2000}
                     Dim pollCount As Integer = 0
+                    Dim cfClearedAt As Integer = -1  ' track when CF cleared
 
                     AddHandler pollTimer.Tick, Async Sub(s, e)
                         pollCount += 1
@@ -579,9 +618,17 @@ Namespace Services.GameSearch
                             Dim title = If(wv.CoreWebView2?.DocumentTitle, "")
 
                             Dim cfDone = Not title.Contains("Just a moment") AndAlso
-                                         pollCount > 1  ' wait at least 1 poll cycle
+                                         pollCount > 1
 
-                            If cfDone OrElse pollCount >= 13 Then  ' max ~26 seconds
+                            ' Track when CF first clears
+                            If cfDone AndAlso cfClearedAt < 0 Then
+                                cfClearedAt = pollCount
+                            End If
+
+                            ' Wait 2 extra cycles after CF clears for AJAX content to load
+                            Dim contentReady = (cfClearedAt > 0 AndAlso pollCount >= cfClearedAt + 2)
+
+                            If contentReady OrElse pollCount >= 15 Then  ' max ~30 seconds
                                 ' Extract full HTML via JS
                                 Dim jsResult = Await wv.CoreWebView2.ExecuteScriptAsync(
                                     "document.documentElement.outerHTML")
@@ -642,6 +689,139 @@ Namespace Services.GameSearch
 
             Return Await tcs.Task
         End Function
+
+        ''' <summary>
+        ''' Fallback: uses WebView2 to navigate to the URL, bypass CF, then extract
+        ''' game links directly from the DOM via JavaScript queries.
+        ''' More reliable than regex parsing when HTML structure is unknown.
+        ''' </summary>
+        Private Shared Async Function ExtractLinksViaJsAsync(url As String) As Task(Of List(Of GameSearchResult))
+            Dim tcs As New TaskCompletionSource(Of List(Of GameSearchResult))()
+
+            Dim doWork As Action = Sub()
+                Try
+                    Dim frm As New Form() With {
+                        .Width = 1, .Height = 1,
+                        .ShowInTaskbar = False, .Opacity = 0,
+                        .FormBorderStyle = FormBorderStyle.None,
+                        .StartPosition = FormStartPosition.Manual,
+                        .Location = New Drawing.Point(-10000, -10000)
+                    }
+
+                    Dim wv As New WebView2() With {.Dock = DockStyle.Fill}
+                    frm.Controls.Add(wv)
+
+                    Dim cleanedUp As Boolean = False
+                    Dim doCleanup As Action = Sub()
+                        If cleanedUp Then Return
+                        cleanedUp = True
+                        Try : frm.Close() : frm.Dispose() : Catch : End Try
+                    End Sub
+
+                    Dim pollTimer As New Timer() With {.Interval = 2500}
+                    Dim pollCount As Integer = 0
+                    Dim cfClearedAt As Integer = -1
+
+                    AddHandler pollTimer.Tick, Async Sub(s, e)
+                        pollCount += 1
+                        pollTimer.Stop()
+
+                        Try
+                            Dim title = If(wv.CoreWebView2?.DocumentTitle, "")
+                            Dim cfDone = Not title.Contains("Just a moment") AndAlso pollCount > 1
+
+                            If cfDone AndAlso cfClearedAt < 0 Then cfClearedAt = pollCount
+                            Dim contentReady = (cfClearedAt > 0 AndAlso pollCount >= cfClearedAt + 2)
+
+                            If contentReady OrElse pollCount >= 15 Then
+                                ' Extract game links directly from DOM
+                                Dim js = "JSON.stringify(Array.from(document.querySelectorAll(" &
+                                         "'article a[href], h2 a[href], h3 a[href], .entry-title a[href], " &
+                                         ".post-title a[href], a.post-link[href]')).map(a => ({" &
+                                         "u: a.href, t: (a.textContent || '').trim()}))" &
+                                         ".filter(x => x.u.includes('dlpsgame') && " &
+                                         "!x.u.includes('/category/') && !x.u.includes('/tag/') && " &
+                                         "!x.u.includes('/author/') && !x.u.includes('/page/') && " &
+                                         "!x.u.includes('/wp-content/') && !x.u.includes('/feed/') && " &
+                                         "x.u !== 'https://dlpsgame.com/' && x.u !== 'https://dlpsgame.com'))"
+
+                                Dim jsResult = Await wv.CoreWebView2.ExecuteScriptAsync(js)
+
+                                Dim extracted As New List(Of GameSearchResult)
+                                If jsResult IsNot Nothing AndAlso jsResult <> "null" AndAlso jsResult <> "[]" Then
+                                    Dim items = Newtonsoft.Json.JsonConvert.DeserializeObject(Of List(Of JsLink))(jsResult)
+                                    Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                                    If items IsNot Nothing Then
+                                        For Each entry In items
+                                            If String.IsNullOrEmpty(entry.u) Then Continue For
+                                            If seen.Contains(entry.u) Then Continue For
+                                            seen.Add(entry.u)
+
+                                            Dim gameTitle = If(Not String.IsNullOrEmpty(entry.t) AndAlso entry.t.Length >= 3,
+                                                               entry.t,
+                                                               entry.u.TrimEnd("/"c).Split("/"c).Last().Replace("-", " "))
+                                            gameTitle = Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(gameTitle)
+
+                                            Dim plat = ""
+                                            If gameTitle.ToUpper().Contains("PS5") OrElse entry.u.Contains("-ps5") Then plat = "PS5"
+                                            If gameTitle.ToUpper().Contains("PS4") OrElse entry.u.Contains("-ps4") Then plat = "PS4"
+
+                                            extracted.Add(New GameSearchResult With {
+                                                .Title = gameTitle,
+                                                .DetailsUrl = entry.u,
+                                                .SourceProvider = "DLPSGame",
+                                                .Platform = plat,
+                                                .Category = "Game"
+                                            })
+                                        Next
+                                    End If
+                                End If
+
+                                doCleanup()
+                                tcs.TrySetResult(extracted)
+                                Return
+                            End If
+                        Catch
+                        End Try
+
+                        If Not cleanedUp Then pollTimer.Start()
+                    End Sub
+
+                    AddHandler frm.Shown, Async Sub(s, e)
+                        Try
+                            Await wv.EnsureCoreWebView2Async()
+                            wv.CoreWebView2.Navigate(url)
+                            pollTimer.Start()
+                        Catch
+                            doCleanup()
+                            tcs.TrySetResult(New List(Of GameSearchResult))
+                        End Try
+                    End Sub
+
+                    frm.Show()
+                Catch
+                    tcs.TrySetResult(New List(Of GameSearchResult))
+                End Try
+            End Sub
+
+            Dim mainForm As Form = Nothing
+            For Each f As Form In Application.OpenForms
+                If f.IsHandleCreated Then mainForm = f : Exit For
+            Next
+
+            If mainForm IsNot Nothing AndAlso mainForm.InvokeRequired Then
+                mainForm.Invoke(doWork)
+            Else
+                doWork()
+            End If
+
+            Return Await tcs.Task
+        End Function
+
+        Private Class JsLink
+            Public Property u As String
+            Public Property t As String
+        End Class
 
         ''' <summary>
         ''' Parses the Uploader field ("Host: URL | Host: URL") back into a list of (host, url) pairs.
