@@ -45,91 +45,166 @@ Public Class UpdateCheckerService
         SkipVersion
         Cancelled
     End Enum
+    ' ------------------------------------------------------------
+    ' Fire-and-forget background update check
+    ' ------------------------------------------------------------
+    Public Shared Sub StartBackgroundUpdateCheck()
 
+        If Not IsAutoUpdateEnabled() Then
+            Return
+        End If
+
+        If Not ShouldCheckForUpdates() Then
+            Return
+        End If
+
+        ' Run completely in background
+        Task.Run(
+        Async Function()
+            Try
+                Dim result = Await CheckForUpdatesAsync()
+
+                If result IsNot Nothing _
+                   AndAlso result.CheckedSuccessfully _
+                   AndAlso result.UpdateAvailable _
+                   AndAlso Not IsVersionSkipped(result.LatestVersion) Then
+
+                    ' Notify UI safely
+                    RaiseUpdateAvailable(result)
+                End If
+
+                UpdateLastCheckTime()
+
+            Catch ex As Exception
+                ' Never crash UI thread
+                Debug.WriteLine($"Background update check failed: {ex.Message}")
+            End Try
+        End Function)
+
+    End Sub
+    Public Shared Event UpdateAvailable(result As UpdateCheckResult)
+
+    Private Shared Sub RaiseUpdateAvailable(result As UpdateCheckResult)
+        Try
+            RaiseEvent UpdateAvailable(result)
+        Catch
+            ' Never allow background crash
+        End Try
+    End Sub
     ''' <summary>
     ''' Checks for updates asynchronously.
     ''' </summary>
     ''' <returns>Update check result</returns>
     Public Shared Async Function CheckForUpdatesAsync() As Task(Of UpdateCheckResult)
-        Dim result As New UpdateCheckResult()
 
-        Try
-            ' Get current version
-            result.CurrentVersion = My.Application.Info.Version.ToString()
+        Dim updateResult As New UpdateCheckResult()
 
-            ' Try Supabase first (if configured)
+        ' ⏱ 10 second timeout
+        Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
+
             Try
-                Dim supabaseResult = Await CheckSupabaseAsync(result.CurrentVersion)
-                If supabaseResult IsNot Nothing Then
-                    Return supabaseResult
-                End If
+                updateResult.CurrentVersion = My.Application.Info.Version.ToString()
+
+                ' ---------- Try Supabase First ----------
+                Try
+                    Dim supabaseResult = Await CheckSupabaseAsync(
+                    updateResult.CurrentVersion,
+                    cts.Token
+                )
+
+                    If supabaseResult IsNot Nothing Then
+                        Return supabaseResult
+                    End If
+
+                Catch ex As OperationCanceledException
+                    Throw
+
+                Catch ex As Exception
+                    Debug.WriteLine($"Supabase check failed: {ex.Message}")
+                End Try
+
+                ' ---------- Fallback to GitHub ----------
+                updateResult = Await CheckGitHubAsync(
+                updateResult.CurrentVersion,
+                cts.Token
+            )
+
+            Catch ex As OperationCanceledException
+                updateResult.CheckedSuccessfully = False
+                updateResult.ErrorMessage = "Update check timed out."
+                Debug.WriteLine("Update check timed out.")
+
             Catch ex As Exception
-                Debug.WriteLine($"Supabase check failed: {ex.Message}")
+                updateResult.CheckedSuccessfully = False
+                updateResult.ErrorMessage = ex.Message
+                Debug.WriteLine($"Update check failed: {ex.Message}")
+
             End Try
 
-            ' Fallback to GitHub
-            result = Await CheckGitHubAsync(result.CurrentVersion)
-        Catch ex As Exception
-            result.CheckedSuccessfully = False
-            result.ErrorMessage = ex.Message
-            Debug.WriteLine($"Update check failed: {ex.Message}")
-        End Try
+        End Using
 
-        Return result
+        Return updateResult
     End Function
-
     ''' <summary>
     ''' Checks GitHub for the latest release.
     ''' </summary>
-    Private Shared Async Function CheckGitHubAsync(currentVersion As String) As Task(Of UpdateCheckResult)
-        Dim result As New UpdateCheckResult With {
-            .CurrentVersion = currentVersion
-        }
+    Private Shared Async Function CheckGitHubAsync(
+    currentVersion As String,
+    token As Threading.CancellationToken
+) As Task(Of UpdateCheckResult)
+
+        Dim updateResult As New UpdateCheckResult With {
+        .CurrentVersion = currentVersion
+    }
 
         Using client As New HttpClient()
             client.DefaultRequestHeaders.UserAgent.ParseAdd($"{REPO_NAME}/1.0")
 
             Dim url = $"https://api.github.com/repos/{GITHUB_OWNER}/{REPO_NAME}/releases/latest"
-            Dim json = Await client.GetStringAsync(url)
+
+            Dim response = Await client.GetAsync(url, token)
+            response.EnsureSuccessStatusCode()
+
+            Dim json = Await response.Content.ReadAsStringAsync(token)
 
             Using doc = JsonDocument.Parse(json)
                 Dim root = doc.RootElement
 
-                ' Get version info
                 Dim latestTag = root.GetProperty("tag_name").GetString()
-                result.LatestVersion = latestTag.TrimStart("v"c)
-                result.ReleaseUrl = RELEASES_URL
+                updateResult.LatestVersion = latestTag.TrimStart("v"c)
+                updateResult.ReleaseUrl = RELEASES_URL
 
-                ' Get release notes if available
                 Dim bodyProp As JsonElement
                 If root.TryGetProperty("body", bodyProp) Then
-                    result.ReleaseNotes = bodyProp.GetString()
+                    updateResult.ReleaseNotes = bodyProp.GetString()
                 End If
 
-                ' Compare versions
                 Dim currentVer = Version.Parse(currentVersion)
-                Dim latestVer = Version.Parse(result.LatestVersion)
+                Dim latestVer = Version.Parse(updateResult.LatestVersion)
 
-                result.UpdateAvailable = (latestVer > currentVer)
-                result.CheckedSuccessfully = True
+                updateResult.UpdateAvailable = (latestVer > currentVer)
+                updateResult.CheckedSuccessfully = True
             End Using
         End Using
 
-        Return result
+        Return updateResult
     End Function
 
     ''' <summary>
     ''' Checks Supabase for update info (if API configured).
     ''' </summary>
-    Private Shared Async Function CheckSupabaseAsync(currentVersion As String) As Task(Of UpdateCheckResult)
-        ' Only if Supabase is configured
+    Private Shared Async Function CheckSupabaseAsync(
+    currentVersion As String,
+    token As Threading.CancellationToken
+) As Task(Of UpdateCheckResult)
+
         If String.IsNullOrEmpty(k1) OrElse String.IsNullOrEmpty(k2) Then
             Return Nothing
         End If
 
-        Dim result As New UpdateCheckResult With {
-            .CurrentVersion = currentVersion
-        }
+        Dim updateResult As New UpdateCheckResult With {
+        .CurrentVersion = currentVersion
+    }
 
         Try
             Dim baseUrl = "https://ruwcewlkrjyiltgnudaf.supabase.co/rest/v1/AppMasters"
@@ -140,31 +215,40 @@ Public Class UpdateCheckerService
             Using client As New HttpClient()
                 client.DefaultRequestHeaders.Add("apikey", key)
                 client.DefaultRequestHeaders.Accept.Add(
-                    New Headers.MediaTypeWithQualityHeaderValue("application/json"))
+                New Headers.MediaTypeWithQualityHeaderValue("application/json"))
 
-                Dim response = Await client.GetAsync(fullUrl)
+                Dim response = Await client.GetAsync(fullUrl, token)
                 response.EnsureSuccessStatusCode()
 
-                Dim json = Await response.Content.ReadAsStringAsync()
-                Dim apps = System.Text.Json.JsonSerializer.Deserialize(Of List(Of SupabaseApp))(
-                    json,
-                    New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True})
+                Dim json = Await response.Content.ReadAsStringAsync(token)
+
+                Dim apps = JsonSerializer.Deserialize(Of List(Of SupabaseApp))(
+                json,
+                New JsonSerializerOptions With {.PropertyNameCaseInsensitive = True})
 
                 If apps IsNot Nothing AndAlso apps.Count > 0 Then
                     Dim app = apps(0)
-                    result.LatestVersion = app.Version.Trim()
-                    result.ReleaseUrl = If(String.IsNullOrEmpty(app.DL1), RELEASES_URL, app.DL1)
-                    result.ReleaseNotes = app.Message
+
+                    updateResult.LatestVersion = app.Version.Trim()
+                    updateResult.ReleaseUrl = If(String.IsNullOrEmpty(app.DL1),
+                                             RELEASES_URL,
+                                             app.DL1)
+
+                    updateResult.ReleaseNotes = app.Message
 
                     Dim currentVer = Version.Parse(currentVersion)
-                    Dim latestVer = Version.Parse(result.LatestVersion)
+                    Dim latestVer = Version.Parse(updateResult.LatestVersion)
 
-                    result.UpdateAvailable = (latestVer > currentVer)
-                    result.CheckedSuccessfully = True
+                    updateResult.UpdateAvailable = (latestVer > currentVer)
+                    updateResult.CheckedSuccessfully = True
 
-                    Return result
+                    Return updateResult
                 End If
             End Using
+
+        Catch ex As OperationCanceledException
+            Throw
+
         Catch ex As Exception
             Debug.WriteLine($"Supabase check failed: {ex.Message}")
             Return Nothing

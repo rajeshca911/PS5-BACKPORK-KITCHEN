@@ -384,7 +384,7 @@ Partial Class CreditsForm
         SkyLabel2.Name = "SkyLabel2"
         SkyLabel2.Size = New Size(132, 21)
         SkyLabel2.TabIndex = 3
-        SkyLabel2.Text = "CyB1K"
+        SkyLabel2.Text = "xSpecialFoodx"
         SkyLabel2.TextAlign = ContentAlignment.MiddleLeft
         ' 
         ' SkyLabel3

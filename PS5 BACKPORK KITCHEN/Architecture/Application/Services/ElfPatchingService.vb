@@ -24,6 +24,16 @@ Imports PS5_BACKPORK_KITCHEN.globalvariables
 '   6. Optional libc.prx string patch (6xx compatibility)
 '   7. Re-sign ELF → SELF   *** REQUIRED ***
 '   8. Overwrite original only AFTER signing success
+' function working process
+'1. Validate file exists
+'2. Ensure working ELF (temp if SELF)
+'3. Read SDK from working ELF
+'4. If already target → cleanup temp → return
+'5. Patch working ELF
+'6. Optional libc patch
+'7. Sign working ELF → temp SELF
+'8. Replace original with signed SELF
+'9. Cleanup temps
 '
 ' IMPORTANT RULES:
 '
@@ -70,168 +80,328 @@ Namespace Architecture.Application.Services
             _enableLibcPatch = Form1.chklibcpatch.Checked
         End Sub
 
-        Public Async Function PatchFileAsync(filePath As String, targetSdk As Long, cancellationToken As Threading.CancellationToken) As Task(Of Result(Of PatchResult)) _
-            Implements IElfPatchingService.PatchFileAsync
+        'Public Async Function PatchFileAsync1(filePath As String, targetSdk As Long, cancellationToken As Threading.CancellationToken) As Task(Of Result(Of PatchResult)) _
+        '    Implements IElfPatchingService.PatchFileAsync
+
+        '    Dim startTime = DateTime.Now
+        '    Dim tempElfPath As String = Nothing
+        '    Dim tempSelfPath As String = Nothing
+        '    Dim workingPath As String = filePath
+        '    Dim tempElfCreated As Boolean = False
+
+        '    Try
+        '        Dim filename As String
+        '        cancellationToken.ThrowIfCancellationRequested()
+
+        '        ' Check file exists
+        '        Dim exists = Await _fileSystem.FileExistsAsync(filePath)
+        '        If Not exists Then
+        '            Return Result(Of PatchResult).Fail(New FileNotFoundError(filePath))
+        '        End If
+
+        '        ' ---------- STEP 1: Ensure file is decrypted ELF ----------
+
+        '        'Dim workingPath As String = filePath
+
+        '        If Not IsFileDecrypted(filePath) Then
+
+        '            _logger.LogInfo($"SELF detected — decrypting: {filePath}")
+
+        '            Dim dir = IO.Path.GetDirectoryName(filePath)
+        '            Dim base = IO.Path.GetFileNameWithoutExtension(filePath)
+        '            Dim ext = IO.Path.GetExtension(filePath)
+
+        '            Dim tempDecPath = IO.Path.Combine(dir, base & "_tmp_dec" & ext)
+
+        '            Dim ok = selfutilmodule.unpackfile(filePath, tempDecPath)
+
+        '            If Not ok Then
+        '                _logger.LogError($"Decrypt failed: {filePath}")
+
+        '                Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
+        '            End If
+
+        '            ' overwrite original safely (your original design — correct)
+        '            IO.File.Copy(tempDecPath, filePath, True)
+        '            IO.File.Delete(tempDecPath)
+
+        '            _logger.LogInfo($"Decrypted OK → {filePath}")
+
+        '        Else
+        '            _logger.LogInfo($"Already ELF — skipping decrypt: {filePath}")
+        '        End If
+
+        '        ' ---------- Step 2: Ensure ELF (decrypt SELF first) ----------
+        '        ' Read file info using existing ElfInspector
+        '        Dim info = ElfInspector.ReadInfo(filePath)
+
+        '        If info Is Nothing Then
+        '            Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
+        '        End If
+
+        '        If Not info.IsPatchable Then
+        '            Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
+        '        End If
+
+        '        Dim currentSdk = CLng(info.Ps5SdkVersion)
+
+        '        ' Check if already patched
+        '        _logger.LogInfo($"SDK check: current={currentSdk} target = {targetSdk}")
+
+        '        If currentSdk = targetSdk Then
+
+        '            _logger.LogInfo($"File already patched: {filePath}")
+        '            Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
+        '        End If
+
+        '        cancellationToken.ThrowIfCancellationRequested()
+
+        '        ' Patch using existing ElfPatcher
+        '        Dim logMessage As String = ""
+        '        Dim targetPs5 = CUInt(targetSdk)
+        '        Dim targetPs4 = 0UI ' Not used for now
+
+        '        'Dim success = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+
+        '        'If Not success Then
+        '        '    Return Result(Of PatchResult).Fail(New PatchFailedError(filePath))
+        '        'End If
+        '        Dim status = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+
+        '        Select Case status
+
+        '            Case PatchStatus.Patched
+        '                ' ----------  Optional 6xx libc string patch ----------
+
+        '                'Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
+        '                If _enableLibcPatch Then
+        '                    filename = IO.Path.GetFileName(filePath).ToLower()
+        '                    If filename = "libc.prx" Then
+        '                        _logger.LogInfo("Applying 6xx libc string patch")
+        '                        PatchPrxString(filePath, Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
+        '                                       Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B"))
+        '                    End If
+
+        '                End If
+        '                ' ---------- MANDATORY STEP ----------
+        '                ' ---------- STEP 3: Sign patched ELF back to SELF ----------
+
+        '                _logger.LogInfo($"Signing patched file: {filePath}")
+
+        '                Dim dir = IO.Path.GetDirectoryName(filePath)
+        '                Dim baseName = IO.Path.GetFileNameWithoutExtension(filePath)
+        '                Dim tempSelf = IO.Path.Combine(dir, baseName & "_tmp.self")
+
+        '                Dim signOptions As New SigningService.SigningOptions()
+
+        '                Dim signResult = SigningService.SignElf(
+        '                    filePath,
+        '                    tempSelf,
+        '                    SigningService.SigningType.FreeFakeSign,
+        '                    signOptions
+        '                )
+
+        '                If Not signResult.Success Then
+        '                    _logger.LogError($"Signing failed: {filePath}")
+
+        '                    Return Result(Of PatchResult).Fail(
+        '                        New PatchFailedError($"Signing failed")
+        '                    )
+        '                End If
+
+        '                IO.File.Copy(tempSelf, filePath, True)
+        '                IO.File.Delete(tempSelf)
+
+        '                _logger.LogInfo($"Signed OK → {filePath}")
+
+
+
+        '            Case PatchStatus.Skipped
+        '                Return Result(Of PatchResult).Fail(
+        '    New AlreadyPatchedError(filePath, targetSdk)
+        ')
+
+        '            Case PatchStatus.Failed
+        '                Return Result(Of PatchResult).Fail(
+        '    New PatchFailedError(filePath)
+        ')
+
+        '        End Select
+
+
+        '        Dim duration = DateTime.Now - startTime
+
+        '        _logger.LogInfo($"Patched {filePath}: {currentSdk:X} -> {targetSdk:X} in {duration.TotalMilliseconds}ms")
+
+        '        ' Get file size
+        '        Dim fileSize = Await _fileSystem.GetFileSizeAsync(filePath)
+
+        '        ' Create result
+        '        Dim patchResult = New PatchResult With {
+        '            .FilePath = filePath,
+        '            .OriginalSdk = info.Ps5SdkVersion.Value,
+        '            .PatchedSdk = targetSdk,
+        '            .BytesWritten = fileSize,
+        '            .Duration = duration
+        '        }
+
+        '        Return Result(Of PatchResult).Success(patchResult)
+
+        '    Catch ex As OperationCanceledException
+        '        _logger.LogWarning($"Patch cancelled for {filePath}")
+        '        Throw
+
+        '    Catch ex As Exception
+        '        _logger.LogError($"Unexpected error patching {filePath}", ex)
+        '        Return Result(Of PatchResult).Fail(New FileAccessError(filePath, ex))
+        '    End Try
+        'End Function
+        Public Async Function PatchFileAsync(
+    filePath As String,
+    targetSdk As Long,
+    cancellationToken As Threading.CancellationToken
+) As Task(Of Result(Of PatchResult)) _
+    Implements IElfPatchingService.PatchFileAsync
 
             Dim startTime = DateTime.Now
+            Dim tempDecryptedPath As String = Nothing
+            Dim tempSignedPath As String = Nothing
+            Dim workingPath As String = filePath
+            Dim tempCreated As Boolean = False
 
             Try
-                Dim filename As String
                 cancellationToken.ThrowIfCancellationRequested()
 
-                ' Check file exists
-                Dim exists = Await _fileSystem.FileExistsAsync(filePath)
-                If Not exists Then
+                ' ---------- 1. Validate ----------
+                If Not Await _fileSystem.FileExistsAsync(filePath) Then
                     Return Result(Of PatchResult).Fail(New FileNotFoundError(filePath))
                 End If
 
-                ' ---------- STEP 1: Ensure file is decrypted ELF ----------
+                Dim dir = IO.Path.GetDirectoryName(filePath)
+                Dim baseName = IO.Path.GetFileNameWithoutExtension(filePath)
 
-                Dim workingPath As String = filePath
+                ' ---------- 2. Decrypt SELF (Preserve container structure) ----------
+                _logger.LogInfo($"IsFileDecrypted({filePath}) = {IsFileDecrypted(filePath)}")
 
                 If Not IsFileDecrypted(filePath) Then
 
-                    _logger.LogInfo($"SELF detected — decrypting: {filePath}")
+                    tempDecryptedPath = IO.Path.Combine(dir, baseName & "_decrypted.self")
 
-                    Dim dir = IO.Path.GetDirectoryName(filePath)
-                    Dim base = IO.Path.GetFileNameWithoutExtension(filePath)
-                    Dim ext = IO.Path.GetExtension(filePath)
+                    _logger.LogInfo($"Decrypting SELF → {tempDecryptedPath}")
 
-                    Dim tempDecPath = IO.Path.Combine(dir, base & "_tmp_dec" & ext)
-
-                    Dim ok = selfutilmodule.unpackfile(filePath, tempDecPath)
-
-                    If Not ok Then
-                        _logger.LogError($"Decrypt failed: {filePath}")
-
+                    ' IMPORTANT: this must output decrypted SELF, not stripped ELF
+                    If Not selfutilmodule.unpackfile(filePath, tempDecryptedPath) Then
                         Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
                     End If
 
-                    ' overwrite original safely (your original design — correct)
-                    IO.File.Copy(tempDecPath, filePath, True)
-                    IO.File.Delete(tempDecPath)
-
-                    _logger.LogInfo($"Decrypted OK → {filePath}")
-
+                    workingPath = tempDecryptedPath
+                    tempCreated = True
                 Else
-                    _logger.LogInfo($"Already ELF — skipping decrypt: {filePath}")
+                    _logger.LogInfo("Already decrypted SELF — using original")
                 End If
 
-                ' ---------- Step 2: Ensure ELF (decrypt SELF first) ----------
-                ' Read file info using existing ElfInspector
-                Dim info = ElfInspector.ReadInfo(filePath)
+                cancellationToken.ThrowIfCancellationRequested()
 
-                If info Is Nothing Then
-                    Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
-                End If
+                ' ---------- 3. Read Info ----------
+                Dim info = ElfInspector.ReadInfo(workingPath)
 
-                If Not info.IsPatchable Then
+                If info Is Nothing OrElse Not info.IsPatchable Then
                     Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
                 End If
 
                 Dim currentSdk = CLng(info.Ps5SdkVersion)
+                _logger.LogInfo($"SDK check: current={currentSdk} target={targetSdk}")
 
-                ' Check if already patched
-                _logger.LogInfo($"SDK check: current={currentSdk} target = {targetSdk}")
-
+                ' ---------- 4. Already patched ----------
                 If currentSdk = targetSdk Then
-
-                    _logger.LogInfo($"File already patched: {filePath}")
-                    Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
+                    Return Result(Of PatchResult).Fail(
+                New AlreadyPatchedError(filePath, targetSdk))
                 End If
 
                 cancellationToken.ThrowIfCancellationRequested()
 
-                ' Patch using existing ElfPatcher
+                ' ---------- 5. PATCH (on decrypted SELF, not raw ELF) ----------
+                _logger.LogInfo($"Patching decrypted SELF: {workingPath}")
+
                 Dim logMessage As String = ""
-                Dim targetPs5 = CUInt(targetSdk)
-                Dim targetPs4 = 0UI ' Not used for now
-
-                'Dim success = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
-
-                'If Not success Then
-                '    Return Result(Of PatchResult).Fail(New PatchFailedError(filePath))
-                'End If
-                Dim status = ElfPatcher.PatchSingleFile(filePath, targetPs5, targetPs4, logMessage)
+                Dim status = ElfPatcher.PatchSingleFile(
+            workingPath,
+            CUInt(targetSdk),
+            0UI,
+            logMessage)
 
                 Select Case status
 
                     Case PatchStatus.Patched
-                        ' ----------  Optional 6xx libc string patch ----------
-
-                        'Dim expermental6xx As Boolean = Form1.chklibcpatch.Checked
-                        If _enableLibcPatch Then
-                            filename = IO.Path.GetFileName(filePath).ToLower()
-                            If filename = "libc.prx" Then
-                                _logger.LogInfo("Applying 6xx libc string patch")
-                                PatchPrxString(filePath, Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
-                                               Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B"))
-                            End If
-
-                        End If
-                        ' ---------- MANDATORY STEP ----------
-                        ' ---------- STEP 3: Sign patched ELF back to SELF ----------
-
-                        _logger.LogInfo($"Signing patched file: {filePath}")
-
-                        Dim dir = IO.Path.GetDirectoryName(filePath)
-                        Dim baseName = IO.Path.GetFileNameWithoutExtension(filePath)
-                        Dim tempSelf = IO.Path.Combine(dir, baseName & "_tmp.self")
-
-                        Dim signOptions As New SigningService.SigningOptions()
-
-                        Dim signResult = SigningService.SignElf(
-                            filePath,
-                            tempSelf,
-                            SigningService.SigningType.FreeFakeSign,
-                            signOptions
-                        )
-
-                        If Not signResult.Success Then
-                            _logger.LogError($"Signing failed: {filePath}")
-
-                            Return Result(Of PatchResult).Fail(
-                                New PatchFailedError($"Signing failed")
-                            )
-                        End If
-
-                        IO.File.Copy(tempSelf, filePath, True)
-                        IO.File.Delete(tempSelf)
-
-                        _logger.LogInfo($"Signed OK → {filePath}")
-
-
+        ' continue normally
 
                     Case PatchStatus.Skipped
+                        _logger.LogInfo("Already compatible with target SDK")
                         Return Result(Of PatchResult).Fail(
-            New AlreadyPatchedError(filePath, targetSdk)
-        )
+            New AlreadyPatchedError(filePath, targetSdk))
 
                     Case PatchStatus.Failed
+                        _logger.LogError("Patch failed internally")
                         Return Result(Of PatchResult).Fail(
-            New PatchFailedError(filePath)
-        )
+            New PatchFailedError(filePath))
 
                 End Select
 
+                ' ---------- 6. Optional libc patch ----------
+                If _enableLibcPatch Then
+                    Dim filename = IO.Path.GetFileName(filePath).ToLower()
+                    If filename = "libc.prx" Then
+                        _logger.LogInfo("Applying libc string patch")
+                        PatchPrxString(
+                    workingPath,
+                    Encoding.ASCII.GetBytes("4h6F1LLbTiw#A#B"),
+                    Encoding.ASCII.GetBytes("IWIBBdTHit4#A#B"))
+                    End If
+                End If
 
+                cancellationToken.ThrowIfCancellationRequested()
+
+                ' ---------- 7. Sign ----------
+                tempSignedPath = IO.Path.Combine(dir, baseName & "_signed.self")
+
+                _logger.LogInfo($"Signing → {tempSignedPath}")
+
+                Dim signResult = SigningService.SignElf(
+            workingPath,
+            tempSignedPath,
+            SigningService.SigningType.FreeFakeSign,
+            New SigningService.SigningOptions())
+
+                If Not signResult.Success Then
+                    Return Result(Of PatchResult).Fail(New PatchFailedError("Signing failed"))
+                End If
+
+                ' ---------- 8. Replace original ----------
+                IO.File.Copy(tempSignedPath, filePath, True)
+                _logger.LogInfo($"Replaced original → {filePath}")
+
+                ' ---------- 9. Cleanup ----------
+                If tempCreated AndAlso IO.File.Exists(tempDecryptedPath) Then
+                    IO.File.Delete(tempDecryptedPath)
+                End If
+
+                If IO.File.Exists(tempSignedPath) Then
+                    IO.File.Delete(tempSignedPath)
+                End If
+
+                ' ---------- 10. Success ----------
                 Dim duration = DateTime.Now - startTime
-
-                _logger.LogInfo($"Patched {filePath}: {currentSdk:X} -> {targetSdk:X} in {duration.TotalMilliseconds}ms")
-
-                ' Get file size
                 Dim fileSize = Await _fileSystem.GetFileSizeAsync(filePath)
 
-                ' Create result
-                Dim patchResult = New PatchResult With {
-                    .FilePath = filePath,
-                    .OriginalSdk = info.Ps5SdkVersion.Value,
-                    .PatchedSdk = targetSdk,
-                    .BytesWritten = fileSize,
-                    .Duration = duration
-                }
+                Dim presult As New PatchResult With {
+            .FilePath = filePath,
+            .OriginalSdk = currentSdk,
+            .PatchedSdk = targetSdk,
+            .BytesWritten = fileSize,
+            .Duration = duration
+        }
 
-                Return Result(Of PatchResult).Success(patchResult)
+                Return Result(Of PatchResult).Success(presult)
 
             Catch ex As OperationCanceledException
                 _logger.LogWarning($"Patch cancelled for {filePath}")
@@ -240,13 +410,25 @@ Namespace Architecture.Application.Services
             Catch ex As Exception
                 _logger.LogError($"Unexpected error patching {filePath}", ex)
                 Return Result(Of PatchResult).Fail(New FileAccessError(filePath, ex))
+
+            Finally
+                If tempCreated AndAlso tempDecryptedPath IsNot Nothing _
+           AndAlso IO.File.Exists(tempDecryptedPath) Then
+                    IO.File.Delete(tempDecryptedPath)
+                End If
+
+                If tempSignedPath IsNot Nothing _
+           AndAlso IO.File.Exists(tempSignedPath) Then
+                    IO.File.Delete(tempSignedPath)
+                End If
             End Try
         End Function
-
         Public Async Function CanPatchFileAsync(filePath As String) As Task(Of Result(Of Boolean)) _
             Implements IElfPatchingService.CanPatchFileAsync
 
             Try
+                filePath = EnsureElfReady(filePath)
+
                 Dim exists = Await _fileSystem.FileExistsAsync(filePath)
                 If Not exists Then Return Result(Of Boolean).Success(False)
 
@@ -264,6 +446,8 @@ Namespace Architecture.Application.Services
             Implements IElfPatchingService.DetectSdkVersionAsync
 
             Try
+                filePath = EnsureElfReady(filePath)
+
                 Dim info = Await Task.Run(Function() ElfInspector.ReadInfo(filePath))
 
                 If info Is Nothing Then
@@ -277,6 +461,34 @@ Namespace Architecture.Application.Services
             Catch ex As Exception
                 Return Result(Of Long).Fail(New FileAccessError(filePath, ex))
             End Try
+        End Function
+        Private Function EnsureElfReady(filePath As String) As String
+
+            ' If already ELF → return original path
+            If IsFileDecrypted(filePath) Then
+                _logger.LogInfo($"Already ELF — using original: {filePath}")
+                Return filePath
+            End If
+
+            ' If SELF → decrypt to temp ELF (do NOT overwrite original)
+            _logger.LogInfo($"SELF detected — preparing temporary ELF: {filePath}")
+
+            Dim dir = IO.Path.GetDirectoryName(filePath)
+            Dim baseName = IO.Path.GetFileNameWithoutExtension(filePath)
+            Dim ext = IO.Path.GetExtension(filePath)
+
+            Dim tempElfPath = IO.Path.Combine(dir, baseName & "_working.elf")
+
+            Dim ok = selfutilmodule.unpackfile(filePath, tempElfPath)
+
+            If Not ok Then
+                Throw New Exception($"Failed to decrypt SELF: {filePath}")
+            End If
+
+            _logger.LogInfo($"Temporary ELF ready → {tempElfPath}")
+
+            Return tempElfPath
+
         End Function
         Public Shared Function IsFileDecrypted(path As String) As Boolean
             Using fs As New FileStream(path, FileMode.Open, FileAccess.Read)

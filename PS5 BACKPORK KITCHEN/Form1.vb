@@ -368,7 +368,7 @@ Public Class Form1
         If File.Exists(gameicon) Then
             gamepic.Image = Image.FromFile(gameicon)
         Else
-            gamepic.Image = My.Resources.game_controller
+            gamepic.Image = My.Resources.logo
         End If
 
     End Sub
@@ -385,6 +385,7 @@ Public Class Form1
         'checking base library
         Me.Refresh()
         TableLayoutPanel1.Visible = True
+
 
         ' Check for updates with new system
         Try
@@ -424,6 +425,10 @@ Public Class Form1
     ''' </summary>
     Public Async Function CheckForUpdatesEnhancedAsync() As Task
         Try
+            Logger.Log(RichGameInfo, "Checking for updates...", Color.Blue, False)
+
+            AddHandler UpdateCheckerService.UpdateAvailable,
+        AddressOf HandleUpdateAvailable
             ' Check if auto-update is enabled
             'If Not UpdateCheckerService.IsAutoUpdateEnabled() Then
             '    Logger.Log(RichGameInfo, "Auto-update check disabled", Color.Gray, False)
@@ -435,55 +440,118 @@ Public Class Form1
             '    Return
             'End If
 
-            Logger.Log(RichGameInfo, "Checking for updates...", Color.Blue, False)
 
             ' Perform check
-            Dim result = Await UpdateCheckerService.CheckForUpdatesAsync()
+            'Dim result = Await UpdateCheckerService.CheckForUpdatesAsync()
+            UpdateCheckerService.StartBackgroundUpdateCheck()
 
             ' Update last check time
             UpdateCheckerService.UpdateLastCheckTime()
 
-            If Not result.CheckedSuccessfully Then
-                Logger.Log(RichGameInfo, "Update check failed", Color.Orange, False)
-                Return
-            End If
+            'If Not result.CheckedSuccessfully Then
+            '    Logger.Log(RichGameInfo, "Update check failed", Color.Orange, False)
+            '    Return
+            'End If
 
-            If result.UpdateAvailable Then
-                ' Check if version is skipped
-                If UpdateCheckerService.IsVersionSkipped(result.LatestVersion) Then
-                    Logger.Log(RichGameInfo, $"Update v{result.LatestVersion} skipped by user", Color.Gray, False)
-                    Return
-                End If
+            'If result.UpdateAvailable Then
+            '    ' Check if version is skipped
+            '    If UpdateCheckerService.IsVersionSkipped(result.LatestVersion) Then
+            '        Logger.Log(RichGameInfo, $"Update v{result.LatestVersion} skipped by user", Color.Gray, False)
+            '        Return
+            '    End If
 
-                Logger.Log(RichGameInfo, $"Update available: v{result.LatestVersion}", Color.Green, False)
+            '    Logger.Log(RichGameInfo, $"Update available: v{result.LatestVersion}", Color.Green, False)
 
-                ' Show notification dialog
-                Using notifyForm As New UpdateNotificationForm(result)
-                    notifyForm.ShowDialog(Me)
+            '    ' Show notification dialog
+            '    Using notifyForm As New UpdateNotificationForm(result)
+            '        notifyForm.ShowDialog(Me)
 
-                    Select Case notifyForm.UserDecision
-                        Case UpdateCheckerService.UpdateDecision.DownloadNow
-                            ' Open browser to releases page
-                            OpenURL(result.ReleaseUrl)
+            '        Select Case notifyForm.UserDecision
+            '            Case UpdateCheckerService.UpdateDecision.DownloadNow
+            '                ' Open browser to releases page
+            '                OpenURL(result.ReleaseUrl)
 
-                        Case UpdateCheckerService.UpdateDecision.SkipVersion
-                            ' Mark version as skipped
-                            UpdateCheckerService.SkipVersion(result.LatestVersion)
-                            Logger.Log(RichGameInfo, $"Version v{result.LatestVersion} skipped", Color.Gray, False)
+            '            Case UpdateCheckerService.UpdateDecision.SkipVersion
+            '                ' Mark version as skipped
+            '                UpdateCheckerService.SkipVersion(result.LatestVersion)
+            '                Logger.Log(RichGameInfo, $"Version v{result.LatestVersion} skipped", Color.Gray, False)
 
-                        Case UpdateCheckerService.UpdateDecision.RemindLater
-                            ' Do nothing - will check again in 24h
-                            Logger.Log(RichGameInfo, "Reminder set for 24 hours", Color.Blue, False)
-                    End Select
-                End Using
-            Else
-                Logger.Log(RichGameInfo, $"Up to date (v{result.CurrentVersion})", Color.Green, False)
-            End If
+            '            Case UpdateCheckerService.UpdateDecision.RemindLater
+            '                ' Do nothing - will check again in 24h
+            '                Logger.Log(RichGameInfo, "Reminder set for 24 hours", Color.Blue, False)
+            '        End Select
+            '    End Using
+            'Else
+            '    Logger.Log(RichGameInfo, $"Up to date (v{result.CurrentVersion})", Color.Green, False)
+            'End If
         Catch ex As Exception
             Debug.WriteLine($"Enhanced update check failed: {ex.Message}")
             Logger.Log(RichGameInfo, "Unable to check for updates", Color.Orange, False)
         End Try
     End Function
+    Private Sub HandleUpdateAvailable(result As UpdateCheckerService.UpdateCheckResult)
+
+        If Me.InvokeRequired Then
+            Me.Invoke(Sub() HandleUpdateAvailable(result))
+            Return
+        End If
+
+        ' ----------------------------
+        ' Your logic goes here
+        ' ----------------------------
+
+        If Not result.CheckedSuccessfully Then
+            Logger.Log(RichGameInfo, "Update check failed", Color.Orange, False)
+            Return
+        End If
+
+        If result.UpdateAvailable Then
+
+            If UpdateCheckerService.IsVersionSkipped(result.LatestVersion) Then
+                Logger.Log(RichGameInfo,
+                       $"Update v{result.LatestVersion} skipped by user",
+                       Color.Gray,
+                       False)
+                Return
+            End If
+
+            Logger.Log(RichGameInfo,
+                   $"Update available: v{result.LatestVersion}",
+                   Color.Green,
+                   False)
+
+            Using notifyForm As New UpdateNotificationForm(result)
+                notifyForm.ShowDialog(Me)
+
+                Select Case notifyForm.UserDecision
+
+                    Case UpdateCheckerService.UpdateDecision.DownloadNow
+                        OpenURL(result.ReleaseUrl)
+
+                    Case UpdateCheckerService.UpdateDecision.SkipVersion
+                        UpdateCheckerService.SkipVersion(result.LatestVersion)
+                        Logger.Log(RichGameInfo,
+                               $"Version v{result.LatestVersion} skipped",
+                               Color.Gray,
+                               False)
+
+                    Case UpdateCheckerService.UpdateDecision.RemindLater
+                        Logger.Log(RichGameInfo,
+                               "Reminder set for 24 hours",
+                               Color.Blue,
+                               False)
+
+                End Select
+            End Using
+
+        Else
+            Logger.Log(RichGameInfo,
+                   $"Up to date (v{result.CurrentVersion})",
+                   Color.Green,
+                   False)
+        End If
+
+    End Sub
 
     ' Keep old function for backward compatibility
     Public Async Function CheckUpdatesAsync() As Task
