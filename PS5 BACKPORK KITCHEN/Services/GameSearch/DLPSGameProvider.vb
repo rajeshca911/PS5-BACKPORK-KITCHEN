@@ -3,6 +3,7 @@ Imports System.Net
 Imports System.Net.Http
 Imports System.Text.RegularExpressions
 Imports System.Windows.Forms
+Imports Microsoft.Web.WebView2.WinForms
 Imports Microsoft.Win32
 
 Namespace Services.GameSearch
@@ -534,82 +535,97 @@ Namespace Services.GameSearch
         End Function
 
         ''' <summary>
-        ''' Uses the embedded WebBrowser (IE/MSHTML) control to load a page and execute its
-        ''' JavaScript — including Cloudflare's "Just a moment" challenge.
-        ''' The CF JS runs automatically inside MSHTML; once the challenge passes the title
-        ''' changes and DocumentCompleted fires with the real page content.
-        '''
-        ''' Must marshal WebBrowser creation to the UI thread (STA).
+        ''' Uses WebView2 (Chromium/Edge engine) to load a page and execute its JavaScript,
+        ''' including Cloudflare's "Just a moment" managed challenge.
+        ''' Chromium handles all modern JS — the CF challenge resolves automatically.
+        ''' A hidden form hosts the WebView2 control on the UI thread.
         ''' Returns the full HTML after CF clearance, or "" on timeout/error.
         ''' </summary>
         Friend Shared Async Function FetchWithWebBrowserAsync(url As String) As Task(Of String)
             Dim tcs As New TaskCompletionSource(Of String)()
 
-            Dim launchBrowser As Action = Sub()
+            Dim doWork As Action = Sub()
                 Try
-                    ' Set IE11 browser emulation for this process so CF JS works properly
-                    Try
-                        Dim exeName = System.IO.Path.GetFileName(System.Reflection.Assembly.GetExecutingAssembly().Location)
-                        Using key = Registry.CurrentUser.CreateSubKey(
-                            "SOFTWARE\Microsoft\Internet Explorer\Main\FeatureControl\FEATURE_BROWSER_EMULATION")
-                            If key IsNot Nothing Then
-                                key.SetValue(exeName, 11001, RegistryValueKind.DWord) ' IE11
-                            End If
-                        End Using
-                    Catch
-                        ' Registry write failed — proceed anyway, CF may still work
-                    End Try
-
-                    Dim wb As New WebBrowser() With {
-                        .ScriptErrorsSuppressed = True,
-                        .ScrollBarsEnabled = False,
-                        .Size = New Drawing.Size(1280, 800)
+                    ' Hidden form to host WebView2
+                    Dim frm As New Form() With {
+                        .Width = 1, .Height = 1,
+                        .ShowInTaskbar = False,
+                        .Opacity = 0,
+                        .FormBorderStyle = FormBorderStyle.None,
+                        .StartPosition = FormStartPosition.Manual,
+                        .Location = New Drawing.Point(-10000, -10000)
                     }
 
-                    ' 22-second timeout — CF challenge usually resolves in 5-10 s
-                    Dim timeout As New System.Windows.Forms.Timer() With {.Interval = 22000}
+                    Dim wv As New WebView2() With {.Dock = DockStyle.Fill}
+                    frm.Controls.Add(wv)
 
                     Dim cleanedUp As Boolean = False
                     Dim doCleanup As Action = Sub()
                         If cleanedUp Then Return
                         cleanedUp = True
-                        Try : timeout.Stop() : timeout.Dispose() : Catch : End Try
-                        Try : wb.Stop() : wb.Dispose() : Catch : End Try
+                        Try : frm.Close() : frm.Dispose() : Catch : End Try
                     End Sub
 
-                    AddHandler timeout.Tick, Sub(s, e)
-                        ' Timeout reached — return whatever HTML we have
-                        Dim html As String = ""
-                        Try : html = If(wb.DocumentText, "") : Catch : End Try
-                        doCleanup()
-                        tcs.TrySetResult(html)
+                    ' Polling timer: every 2s check if CF challenge is done
+                    Dim pollTimer As New Timer() With {.Interval = 2000}
+                    Dim pollCount As Integer = 0
+
+                    AddHandler pollTimer.Tick, Async Sub(s, e)
+                        pollCount += 1
+                        pollTimer.Stop()
+
+                        Try
+                            ' Check page title
+                            Dim title = If(wv.CoreWebView2?.DocumentTitle, "")
+
+                            Dim cfDone = Not title.Contains("Just a moment") AndAlso
+                                         pollCount > 1  ' wait at least 1 poll cycle
+
+                            If cfDone OrElse pollCount >= 13 Then  ' max ~26 seconds
+                                ' Extract full HTML via JS
+                                Dim jsResult = Await wv.CoreWebView2.ExecuteScriptAsync(
+                                    "document.documentElement.outerHTML")
+
+                                ' ExecuteScriptAsync returns a JSON string — unwrap it
+                                Dim html As String = ""
+                                If jsResult IsNot Nothing AndAlso jsResult <> "null" Then
+                                    html = Newtonsoft.Json.JsonConvert.DeserializeObject(Of String)(jsResult)
+                                End If
+
+                                doCleanup()
+                                tcs.TrySetResult(If(html, ""))
+                                Return
+                            End If
+                        Catch
+                        End Try
+
+                        ' Not done yet — keep polling
+                        If Not cleanedUp Then pollTimer.Start()
                     End Sub
 
-                    AddHandler wb.DocumentCompleted, Sub(s, e)
-                        ' CF challenge page always has "Just a moment" in the title.
-                        ' Stay patient until it's gone.
-                        Dim title As String = ""
-                        Try : title = If(wb.DocumentTitle, "") : Catch : End Try
-                        If title.IndexOf("Just a moment", StringComparison.OrdinalIgnoreCase) >= 0 Then
-                            Return ' Still on CF challenge — wait for next completion
-                        End If
+                    AddHandler frm.Shown, Async Sub(s, e)
+                        Try
+                            ' Initialize WebView2 with Edge/Chromium engine
+                            Await wv.EnsureCoreWebView2Async()
 
-                        ' Got the real page
-                        Dim html As String = ""
-                        Try : html = If(wb.DocumentText, "") : Catch : End Try
-                        doCleanup()
-                        tcs.TrySetResult(html)
+                            ' Navigate and start polling
+                            wv.CoreWebView2.Navigate(url)
+                            pollTimer.Start()
+
+                        Catch ex As Exception
+                            doCleanup()
+                            tcs.TrySetResult("")
+                        End Try
                     End Sub
 
-                    timeout.Start()
-                    wb.Navigate(url)
+                    frm.Show()
 
                 Catch ex As Exception
-                    tcs.TrySetException(ex)
+                    tcs.TrySetResult("")
                 End Try
             End Sub
 
-            ' WebBrowser (MSHTML/IE) requires STA — marshal to the UI thread
+            ' WebView2 must be created on the UI thread
             Dim mainForm As Form = Nothing
             For Each f As Form In Application.OpenForms
                 If f.IsHandleCreated Then
@@ -618,14 +634,12 @@ Namespace Services.GameSearch
                 End If
             Next
 
-            If mainForm IsNot Nothing Then
-                mainForm.Invoke(launchBrowser)   ' synchronous: sets up wb and starts Navigate
+            If mainForm IsNot Nothing AndAlso mainForm.InvokeRequired Then
+                mainForm.Invoke(doWork)
             Else
-                launchBrowser()  ' already on UI thread (e.g., during startup)
+                doWork()
             End If
 
-            ' Await result — the UI message pump continues running while we wait,
-            ' so WebBrowser events (DocumentCompleted) fire normally.
             Return Await tcs.Task
         End Function
 

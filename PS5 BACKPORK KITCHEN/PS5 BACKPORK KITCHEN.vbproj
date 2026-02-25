@@ -46,6 +46,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentFTP" Version="53.0.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3800.47" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="ReaLTaiizor" Version="3.8.1.5" />
     <PackageReference Include="SharpCompress" Version="0.44.5" />
