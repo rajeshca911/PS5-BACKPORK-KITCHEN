@@ -134,7 +134,7 @@ Partial Class Form1
         ' 
         gamepic.BackColor = Color.FromArgb(CByte(192), CByte(196), CByte(204))
         gamepic.Dock = DockStyle.Fill
-        gamepic.Image = My.Resources.Resources.game_controller
+        gamepic.Image = My.Resources.Resources.logo
         gamepic.Location = New Point(3, 3)
         gamepic.Name = "gamepic"
         gamepic.PixelOffsetType = Drawing2D.PixelOffsetMode.HighQuality
@@ -563,6 +563,7 @@ Partial Class Form1
         FlowLayoutPanel1.Controls.Add(btnElfInspector)
         FlowLayoutPanel1.Controls.Add(btnAdvancedOps)
         FlowLayoutPanel1.Controls.Add(btnPkgManager)
+        FlowLayoutPanel1.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left
         FlowLayoutPanel1.Location = New Point(26, 330)
         FlowLayoutPanel1.Name = "FlowLayoutPanel1"
         FlowLayoutPanel1.Size = New Size(353, 135)

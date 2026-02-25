@@ -24,7 +24,7 @@ Module globalvariables
     'github links
     Public backpork As String = "https://github.com/BestPig/BackPork"
 
-    Public selfutilurl As String = "https://github.com/CyB1K/SelfUtil-Patched"
+    Public selfutilurl As String = "https://github.com/xSpecialFoodx/SelfUtil-Patched"
     Public Idlesauce As String = "https://gist.github.com/idlesauce/2ded24b7b5ff296f21792a8202542aaa"
     Public makeself As String = "https://github.com/ps5-payload-dev/sdk/blob/master/samples/install_app/make_fself.py"
     Public fakelibJsonUrl As String = "https://raw.githubusercontent.com/rajeshca911/PS5-BACKPORK-KITCHEN/refs/heads/main/fakelibs.json"

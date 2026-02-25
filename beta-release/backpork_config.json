@@ -1,0 +1,18 @@
+{
+  "DefaultPs5Sdk": 117440568,
+  "DefaultPs4Sdk": 0,
+  "AutoBackup": true,
+  "AutoVerify": true,
+  "EnableFileLogging": true,
+  "LogLevel": "Info",
+  "LastUsedFolder": "",
+  "Theme": "Default",
+  "Language": "en",
+  "ExportReportsAutomatically": false,
+  "ReportOutputDirectory": "",
+  "CheckForUpdatesOnStartup": true,
+  "LastUpdateCheck": "2026-02-24T13:43:35.1932787+01:00",
+  "SkippedUpdateVersion": "",
+  "MaxConcurrentOperations": 4,
+  "TempFolderCleanupOnExit": true
+}

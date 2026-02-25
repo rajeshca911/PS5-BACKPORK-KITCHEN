@@ -1,0 +1,838 @@
+2026-02-24 13:43:34 [INFO]     === PS5 BackPork Kitchen v1.2.0 - Session Started ===
+2026-02-24 13:43:34 [INFO]     Drag & Drop enabled on path field
+2026-02-24 13:43:34 [INFO]     ✔️ v1.3.0: Recent Folders, Presets, Language & Theme added!
+2026-02-24 13:43:34 [INFO]     Advanced features initialized (including tooltips)
+2026-02-24 13:43:34 [INFO]     Advanced features initialized (incl. keyboard shortcuts)
+2026-02-24 13:43:34 [INFO]     Architecture initialized successfully
+2026-02-24 13:43:34 [INFO]     Library Manager initialized
+2026-02-24 13:43:34 [INFO]     === PS5 BackPork Kitchen v3.0.0.0 ===
+2026-02-24 13:43:34 [INFO]     New features initialized! Try Recent, Presets & Language!
+2026-02-24 13:43:34 [INFO]     
+2026-02-24 13:43:34 [INFO]     Checking for updates...
+2026-02-24 13:43:35 [INFO]     Up to date (v3.0.0.0)
+2026-02-24 13:43:35 [INFO]     Checking for SelfUtils
+2026-02-24 13:43:35 [INFO]     Checking fakelibs Please wait..
+2026-02-24 13:43:35 [INFO]     Skipped (disabled): SelfUtil
+2026-02-24 13:43:35 [INFO]     Already exists: libs.rar
+2026-02-24 13:43:35 [INFO]     Skipped (disabled): UFS2Tool
+2026-02-24 13:43:35 [INFO]     Checks Done!
+2026-02-24 13:43:40 [INFO]     PS5 SDK: = 1
+2026-02-24 13:43:40 [INFO]     PS5 SDK: = 1
+2026-02-24 13:43:40 [INFO]     PS5 SDK: = 7
+2026-02-24 13:51:00 [INFO]     Selected folder: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0
+2026-02-24 13:51:00 [INFO]     param.json detected
+2026-02-24 13:51:00 [INFO]     Title: Looney Tunes: Wacky World of Sports
+2026-02-24 13:51:00 [INFO]     Title ID: PPSA19564
+2026-02-24 13:51:00 [INFO]     Content ID: EP0281-PPSA19564_00-8088311817253850
+2026-02-24 13:51:00 [INFO]     Content Version: 01.000.000
+2026-02-24 13:51:00 [INFO]     Origin Version: 
+2026-02-24 13:51:05 [INFO]     Selected PS5 SDK: 7 (07000038)
+2026-02-24 13:51:08 [INFO]     Backingup: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\eboot.bin => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\eboot.bin
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\prx\libfmod.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\prx\libfmod.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\prx\libfmodstudio.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\prx\libfmodstudio.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libc.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libc.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceFace.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libSceFace.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceFaceTracker.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libSceFaceTracker.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceFontGsm.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libSceFontGsm.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceJobManager.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libSceJobManager.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceNpCppWebApi.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libSceNpCppWebApi.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libScePfs.prx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_module\libScePfs.prx
+2026-02-24 13:51:08 [INFO]     Copied: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_sys\about\right.sprx => C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108\sce_sys\about\right.sprx
+2026-02-24 13:51:08 [INFO]     Backup created at: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0_backup_20260224_135108
+2026-02-24 13:51:09 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:09 [INFO]     Unpacking → eboot.bin
+2026-02-24 13:51:09 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:09 [INFO]     SELF header parsed.
+2026-02-24 13:51:09 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:09 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x52B933C Align: 0x4000
+2026-02-24 13:51:09 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:09 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[1] Offset: 0x52C0000 Size: 0x8B4414 Align: 0x4000
+2026-02-24 13:51:09 [INFO]     PH[1] Type: 0x00000001 Offset: 0x52C0000
+2026-02-24 13:51:09 [INFO]     PH[1] Type: 0x00000001 Offset: 0x52C0000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[2] Offset: 0x52C0000 Size: 0x34114 Align: 0x4
+2026-02-24 13:51:09 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x52C0000
+2026-02-24 13:51:09 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x52C0000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[3] Offset: 0x5B78000 Size: 0xD12C50 Align: 0x4000
+2026-02-24 13:51:09 [INFO]     PH[3] Type: 0x00000001 Offset: 0x5B78000
+2026-02-24 13:51:09 [INFO]     PH[3] Type: 0x00000001 Offset: 0x5B78000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[4] Offset: 0x5B78000 Size: 0xD12C50 Align: 0x1
+2026-02-24 13:51:09 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x5B78000
+2026-02-24 13:51:09 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x5B78000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[5] Offset: 0x5B78000 Size: 0x28 Align: 0x10
+2026-02-24 13:51:09 [INFO]     PH[5] Type: 0x00000007 Offset: 0x5B78000
+2026-02-24 13:51:09 [INFO]     PH[5] Type: 0x00000007 Offset: 0x5B78000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[6] Offset: 0x688ABF0 Size: 0x60 Align: 0x8
+2026-02-24 13:51:09 [INFO]     PH[6] Type: 0x61000001 Offset: 0x688ABF0
+2026-02-24 13:51:09 [INFO]     PH[6] Type: 0x61000001 Offset: 0x688ABF0
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[7] Offset: 0x688C000 Size: 0xCC510 Align: 0x4000
+2026-02-24 13:51:09 [INFO]     PH[7] Type: 0x00000001 Offset: 0x688C000
+2026-02-24 13:51:09 [INFO]     PH[7] Type: 0x00000001 Offset: 0x688C000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[8] Offset: 0x695A4E0 Size: 0x1ABE928 Align: 0x4000
+2026-02-24 13:51:09 [INFO]     PH[8] Type: 0x00000001 Offset: 0x695A4E0
+2026-02-24 13:51:09 [INFO]     PH[8] Type: 0x00000001 Offset: 0x695A4E0
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[9] Offset: 0x8417E10 Size: 0x24 Align: 0x4
+2026-02-24 13:51:09 [INFO]     PH[9] Type: 0x00000004 Offset: 0x8417E10
+2026-02-24 13:51:09 [INFO]     PH[9] Type: 0x00000004 Offset: 0x8417E10
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[10] Offset: 0x8417E38 Size: 0xFD0 Align: 0x8
+2026-02-24 13:51:09 [INFO]     PH[10] Type: 0x00000002 Offset: 0x8417E38
+2026-02-24 13:51:09 [INFO]     PH[10] Type: 0x00000002 Offset: 0x8417E38
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[11] Offset: 0x8418E10 Size: 0x58 Align: 0x10
+2026-02-24 13:51:09 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x8418E10
+2026-02-24 13:51:09 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x8418E10
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[12] Offset: 0x8418E68 Size: 0x1FC8 Align: 0x1
+2026-02-24 13:51:09 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x8418E68
+2026-02-24 13:51:09 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x8418E68
+2026-02-24 13:51:09 [INFO]     [ExtractElf] PH[13] Offset: 0x841AE30 Size: 0x18 Align: 0x4
+2026-02-24 13:51:09 [INFO]     PH[13] Type: 0x00000004 Offset: 0x841AE30
+2026-02-24 13:51:09 [INFO]     PH[13] Type: 0x00000004 Offset: 0x841AE30
+2026-02-24 13:51:09 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Last Segment Offset: 0x841AE30
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Calculated Save Size: 0x841AE48
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:09 [INFO]     
+2026-02-24 13:51:09 [INFO]     patching version segment
+2026-02-24 13:51:09 [INFO]     segment address: 0x844DD98
+2026-02-24 13:51:09 [INFO]     segment size: 0x1FC8
+2026-02-24 13:51:09 [INFO]     patched version segment
+2026-02-24 13:51:09 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:09 [INFO]     [ExtractElf] Output buffer size: 0x841AE48
+2026-02-24 13:51:09 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:09 [INFO]     Backup created: eboot.bin.bak_20260224_135109
+2026-02-24 13:51:09 [INFO]     Signing with Free Fake Sign...
+2026-02-24 13:51:10 [INFO]     ✓ Free Fake Sign completed: eboot_tmp.self
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libfmod.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x129F70 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x130000 Size: 0x4E408 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x130000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x130000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x130000 Size: 0x6F0C Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x130000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x130000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x180000 Size: 0x3AF8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x180000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x180000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x180000 Size: 0x3AF8 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x180000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x180000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x183AD8 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x183AD8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x183AD8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x184000 Size: 0xCBE8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x184000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x184000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x190D60 Size: 0x1AC08 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x190D60
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x190D60
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x1AB540 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x1AB540
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x1AB540
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x1AB568 Size: 0x400 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x1AB568
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x1AB568
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x1AB970 Size: 0x7C Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x1AB970
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x1AB970
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x1AB9EC Size: 0x21D Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x1AB9EC
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x1AB9EC
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x1ABC0C Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x1ABC0C
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x1ABC0C
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x1ABC0C
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x1ABC24
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x1A4EEC
+2026-02-24 13:51:10 [INFO]     segment size: 0x21D
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x1ABC24
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0x1230
+2026-02-24 13:51:10 [INFO]     size: 0x2DD0
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libfmodstudio.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x11E8E0 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x124000 Size: 0x37DAC Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x124000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x124000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x124000 Size: 0x9694 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x124000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x124000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x15C000 Size: 0x7818 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x15C000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x15C000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x15C000 Size: 0x7818 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x15C000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x15C000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x1637F8 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x1637F8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x1637F8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x164000 Size: 0x38 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x164000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x164000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x165220 Size: 0x1A330 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x165220
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x165220
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x17F2A8 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x17F2A8
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x17F2A8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x17F2D0 Size: 0x280 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x17F2D0
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x17F2D0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x17F550 Size: 0x88 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x17F550
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x17F550
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x17F5D8 Size: 0xBD Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x17F5D8
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x17F5D8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x17F698 Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x17F698
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x17F698
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x17F698
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x17F6B0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x179938
+2026-02-24 13:51:10 [INFO]     segment size: 0xBD
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x17F6B0
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0x11D0
+2026-02-24 13:51:10 [INFO]     size: 0x2E30
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libc.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0xCA020 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0xD0000 Size: 0x40D06 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0xD0000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0xD0000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0xD0000 Size: 0x6F14 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0xD0000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0xD0000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x114000 Size: 0x3CD8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x114000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x114000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x114000 Size: 0x3CD8 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x114000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x114000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x114000 Size: 0x188 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x114000
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x114000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x117CB8 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x117CB8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x117CB8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x118000 Size: 0x3B88 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x118000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x118000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x11F830 Size: 0x2A7A8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x11F830
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x11F830
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x149D00 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x149D00
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x149D00
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x149D28 Size: 0x2B0 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x149D28
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x149D28
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x149FE0 Size: 0x58 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x149FE0
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x149FE0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x14A050 Size: 0x1A Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x14A050
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x14A050
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x14A038 Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x14A038
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x14A038
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x14A050
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x14A06A
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x13E258
+2026-02-24 13:51:10 [INFO]     segment size: 0x1A
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x14A06A
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0xF30
+2026-02-24 13:51:10 [INFO]     size: 0x30D0
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     Backup created: libc.prx.bak_20260224_135110
+2026-02-24 13:51:10 [INFO]     Signing with Free Fake Sign...
+2026-02-24 13:51:10 [INFO]     ✓ Free Fake Sign completed: libc_tmp.self
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libSceFace.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x2E370 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x34000 Size: 0x1C303 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x34000 Size: 0x150C Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x54000 Size: 0xE98 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x54000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x54000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x54000 Size: 0xE98 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x54000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x54000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x54E78 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x54E78
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x54E78
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x58000 Size: 0xC8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x58000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x58000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x580E0 Size: 0x2DC0 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x580E0
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x580E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x5AC28 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x5AC28
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x5AC28
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x5AC50 Size: 0x250 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x5AC50
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x5AC50
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x5AEA0 Size: 0x6C Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x5AEA0
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x5AEA0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x5AF30 Size: 0x20 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x5AF30
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x5AF30
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x5AF0C Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x5AF0C
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x5AF0C
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x5AF30
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x5AF50
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x4F18C
+2026-02-24 13:51:10 [INFO]     segment size: 0x20
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x5AF50
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0xA50
+2026-02-24 13:51:10 [INFO]     size: 0x35B0
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libSceFaceTracker.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x8CD0 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x10000 Size: 0x1EC4 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x10000 Size: 0x654 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x14000 Size: 0x178 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x14000 Size: 0x178 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x14158 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x14158
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x14158
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x18000 Size: 0x27085C Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x18000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x18000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x288860 Size: 0x1058 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x288860
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x288860
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x2895E0 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x2895E0
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x2895E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x289608 Size: 0x2B0 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x289608
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x289608
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x2898C0 Size: 0x70 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x2898C0
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x2898C0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x289950 Size: 0x27 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x289950
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x289950
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x289930 Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x289930
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x289930
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x289950
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x289977
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x27E540
+2026-02-24 13:51:10 [INFO]     segment size: 0x27
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x289977
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0x930
+2026-02-24 13:51:10 [INFO]     size: 0x36D0
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libSceFontGsm.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x27890 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x2C000 Size: 0x4E7C Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x2C000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x2C000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x2C000 Size: 0x6EC Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x2C000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x2C000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x34000 Size: 0x6D0 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x34000 Size: 0x6D0 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x34000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x346B0 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x346B0
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x346B0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x38000 Size: 0xC840 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x38000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x38000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x44D00 Size: 0x1E58 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x44D00
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x44D00
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x46820 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x46820
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x46820
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x46848 Size: 0x310 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x46848
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x46848
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x46B60 Size: 0x94 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x46B60
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x46B60
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x46C10 Size: 0x23 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x46C10
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x46C10
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x46BF4 Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x46BF4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x46BF4
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x46C10
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x46C33
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x3C1E4
+2026-02-24 13:51:10 [INFO]     segment size: 0x23
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x46C33
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0xA10
+2026-02-24 13:51:10 [INFO]     size: 0x35F0
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libSceJobManager.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0xAB50 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x10000 Size: 0x1FC8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x10000 Size: 0x69C Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x10000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x14000 Size: 0x630 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x14000 Size: 0x630 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x14000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x11FC8 Size: 0x0 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x11FC8
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x11FC8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x14610 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x14610
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x14610
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x18000 Size: 0x7A8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x18000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x18000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x187B0 Size: 0x3448 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x187B0
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x187B0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x1B890 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x1B890
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x1B890
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x1B8B8 Size: 0x340 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x1B8B8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x1B8B8
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[11] Offset: 0x1BC00 Size: 0x70 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x1BC00
+2026-02-24 13:51:10 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x1BC00
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[12] Offset: 0x1BC90 Size: 0x26 Align: 0x10
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x1BC90
+2026-02-24 13:51:10 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x1BC90
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[13] Offset: 0x1BC70 Size: 0x18 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x1BC70
+2026-02-24 13:51:10 [INFO]     PH[13] Type: 0x00000004 Offset: 0x1BC70
+2026-02-24 13:51:10 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Last Segment Offset: 0x1BC90
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated Save Size: 0x1BCB6
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching version segment
+2026-02-24 13:51:10 [INFO]     segment address: 0x11930
+2026-02-24 13:51:10 [INFO]     segment size: 0x26
+2026-02-24 13:51:10 [INFO]     patched version segment
+2026-02-24 13:51:10 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Output buffer size: 0x1BCB6
+2026-02-24 13:51:10 [INFO]     
+2026-02-24 13:51:10 [INFO]     patching first segment duplicate
+2026-02-24 13:51:10 [INFO]     address: 0x930
+2026-02-24 13:51:10 [INFO]     size: 0x36D0
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     patched first segment duplicate
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:10 [INFO]     Backup created: libSceJobManager.prx.bak_20260224_135110
+2026-02-24 13:51:10 [INFO]     Signing with Free Fake Sign...
+2026-02-24 13:51:10 [INFO]     ✓ Free Fake Sign completed: libSceJobManager_tmp.self
+2026-02-24 13:51:10 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:10 [INFO]     Unpacking → libSceNpCppWebApi.prx
+2026-02-24 13:51:10 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:10 [INFO]     SELF header parsed.
+2026-02-24 13:51:10 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x3F6520 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[1] Offset: 0x3FC000 Size: 0x1899EC Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x3FC000
+2026-02-24 13:51:10 [INFO]     PH[1] Type: 0x00000001 Offset: 0x3FC000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[2] Offset: 0x3FC000 Size: 0x54CAC Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x3FC000
+2026-02-24 13:51:10 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x3FC000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[3] Offset: 0x588000 Size: 0x2488 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x588000
+2026-02-24 13:51:10 [INFO]     PH[3] Type: 0x00000001 Offset: 0x588000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[4] Offset: 0x588000 Size: 0x2488 Align: 0x1
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x588000
+2026-02-24 13:51:10 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x588000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[6] Offset: 0x58A468 Size: 0x20 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x58A468
+2026-02-24 13:51:10 [INFO]     PH[6] Type: 0x61000002 Offset: 0x58A468
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[7] Offset: 0x58C000 Size: 0xD8 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x58C000
+2026-02-24 13:51:10 [INFO]     PH[7] Type: 0x00000001 Offset: 0x58C000
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[8] Offset: 0x58D980 Size: 0x1FCD20 Align: 0x4000
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x58D980
+2026-02-24 13:51:10 [INFO]     PH[8] Type: 0x00000001 Offset: 0x58D980
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[9] Offset: 0x78A338 Size: 0x24 Align: 0x4
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x78A338
+2026-02-24 13:51:10 [INFO]     PH[9] Type: 0x00000004 Offset: 0x78A338
+2026-02-24 13:51:10 [INFO]     [ExtractElf] PH[10] Offset: 0x78A360 Size: 0x340 Align: 0x8
+2026-02-24 13:51:10 [INFO]     PH[10] Type: 0x00000002 Offset: 0x78A360
+2026-02-24 13:51:11 [INFO]     PH[10] Type: 0x00000002 Offset: 0x78A360
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[11] Offset: 0x78A6A0 Size: 0x50 Align: 0x10
+2026-02-24 13:51:11 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x78A6A0
+2026-02-24 13:51:11 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x78A6A0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[12] Offset: 0x78A710 Size: 0x27 Align: 0x10
+2026-02-24 13:51:11 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x78A710
+2026-02-24 13:51:11 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x78A710
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[13] Offset: 0x78A6F0 Size: 0x18 Align: 0x4
+2026-02-24 13:51:11 [INFO]     PH[13] Type: 0x00000004 Offset: 0x78A6F0
+2026-02-24 13:51:11 [INFO]     PH[13] Type: 0x00000004 Offset: 0x78A6F0
+2026-02-24 13:51:11 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Last Segment Offset: 0x78A710
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Calculated Save Size: 0x78A737
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:11 [INFO]     
+2026-02-24 13:51:11 [INFO]     patching version segment
+2026-02-24 13:51:11 [INFO]     segment address: 0x7838E0
+2026-02-24 13:51:11 [INFO]     segment size: 0x27
+2026-02-24 13:51:11 [INFO]     patched version segment
+2026-02-24 13:51:11 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Output buffer size: 0x78A737
+2026-02-24 13:51:11 [INFO]     
+2026-02-24 13:51:11 [INFO]     patching first segment duplicate
+2026-02-24 13:51:11 [INFO]     address: 0x2890
+2026-02-24 13:51:11 [INFO]     size: 0x1770
+2026-02-24 13:51:11 [INFO]     patched first segment duplicate
+2026-02-24 13:51:11 [INFO]     patched first segment duplicate
+2026-02-24 13:51:11 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:11 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:11 [INFO]     Unpacking → libScePfs.prx
+2026-02-24 13:51:11 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:11 [INFO]     SELF header parsed.
+2026-02-24 13:51:11 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Program Header Count: 14
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x127540 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[1] Offset: 0x12C000 Size: 0x1D868 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[1] Type: 0x00000001 Offset: 0x12C000
+2026-02-24 13:51:11 [INFO]     PH[1] Type: 0x00000001 Offset: 0x12C000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[2] Offset: 0x12C000 Size: 0x17BC Align: 0x4
+2026-02-24 13:51:11 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x12C000
+2026-02-24 13:51:11 [INFO]     PH[2] Type: 0x6474E550 Offset: 0x12C000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[3] Offset: 0x14C000 Size: 0x298 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[3] Type: 0x00000001 Offset: 0x14C000
+2026-02-24 13:51:11 [INFO]     PH[3] Type: 0x00000001 Offset: 0x14C000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[4] Offset: 0x14C000 Size: 0x298 Align: 0x1
+2026-02-24 13:51:11 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x14C000
+2026-02-24 13:51:11 [INFO]     PH[4] Type: 0x6474E552 Offset: 0x14C000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[5] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:11 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:11 [INFO]     PH[5] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[6] Offset: 0x14C278 Size: 0x20 Align: 0x8
+2026-02-24 13:51:11 [INFO]     PH[6] Type: 0x61000002 Offset: 0x14C278
+2026-02-24 13:51:11 [INFO]     PH[6] Type: 0x61000002 Offset: 0x14C278
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[7] Offset: 0x150000 Size: 0x312 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[7] Type: 0x00000001 Offset: 0x150000
+2026-02-24 13:51:11 [INFO]     PH[7] Type: 0x00000001 Offset: 0x150000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[8] Offset: 0x150360 Size: 0xEE8 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[8] Type: 0x00000001 Offset: 0x150360
+2026-02-24 13:51:11 [INFO]     PH[8] Type: 0x00000001 Offset: 0x150360
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[9] Offset: 0x150FE0 Size: 0x24 Align: 0x4
+2026-02-24 13:51:11 [INFO]     PH[9] Type: 0x00000004 Offset: 0x150FE0
+2026-02-24 13:51:11 [INFO]     PH[9] Type: 0x00000004 Offset: 0x150FE0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[10] Offset: 0x151008 Size: 0x240 Align: 0x8
+2026-02-24 13:51:11 [INFO]     PH[10] Type: 0x00000002 Offset: 0x151008
+2026-02-24 13:51:11 [INFO]     PH[10] Type: 0x00000002 Offset: 0x151008
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[11] Offset: 0x151250 Size: 0x60 Align: 0x10
+2026-02-24 13:51:11 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x151250
+2026-02-24 13:51:11 [INFO]     PH[11] Type: 0x6FFFFF00 Offset: 0x151250
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[12] Offset: 0x1512C8 Size: 0x1F Align: 0x0
+2026-02-24 13:51:11 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x1512C8
+2026-02-24 13:51:11 [INFO]     PH[12] Type: 0x6FFFFF01 Offset: 0x1512C8
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[13] Offset: 0x1512B0 Size: 0x18 Align: 0x4
+2026-02-24 13:51:11 [INFO]     PH[13] Type: 0x00000004 Offset: 0x1512B0
+2026-02-24 13:51:11 [INFO]     PH[13] Type: 0x00000004 Offset: 0x1512B0
+2026-02-24 13:51:11 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Last Segment Offset: 0x1512C8
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Calculated Save Size: 0x1512E7
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Header region copied: 0x4000 bytes
+2026-02-24 13:51:11 [INFO]     
+2026-02-24 13:51:11 [INFO]     patching version segment
+2026-02-24 13:51:11 [INFO]     segment address: 0x1477F0
+2026-02-24 13:51:11 [INFO]     segment size: 0x1F
+2026-02-24 13:51:11 [INFO]     patched version segment
+2026-02-24 13:51:11 [INFO]     Marshal SelfEntry Size:32
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Output buffer size: 0x1512E7
+2026-02-24 13:51:11 [INFO]     
+2026-02-24 13:51:11 [INFO]     patching first segment duplicate
+2026-02-24 13:51:11 [INFO]     address: 0x1210
+2026-02-24 13:51:11 [INFO]     size: 0x2DF0
+2026-02-24 13:51:11 [INFO]     patched first segment duplicate
+2026-02-24 13:51:11 [INFO]     patched first segment duplicate
+2026-02-24 13:51:11 [INFO]     *** Elf Unpack End ***
+2026-02-24 13:51:11 [INFO]     *** Elf Unpack ***
+2026-02-24 13:51:11 [INFO]     Unpacking → right.sprx
+2026-02-24 13:51:11 [INFO]     SELF detected. Extracting...
+2026-02-24 13:51:11 [INFO]     SELF header parsed.
+2026-02-24 13:51:11 [INFO]     [ExtractElf] SELF entries: 12
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Calculated ELF header offset: 0x1A0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] ELF magic verified at that offset
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Program Header Table Offset: 0x1E0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Program Header Count: 13
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[0] Offset: 0x4000 Size: 0x1008 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[0] Type: 0x00000001 Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[1] Offset: 0x8000 Size: 0x10F0 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[1] Type: 0x00000001 Offset: 0x8000
+2026-02-24 13:51:11 [INFO]     PH[1] Type: 0x00000001 Offset: 0x8000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[2] Offset: 0xC000 Size: 0x60 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[2] Type: 0x00000001 Offset: 0xC000
+2026-02-24 13:51:11 [INFO]     PH[2] Type: 0x00000001 Offset: 0xC000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[3] Offset: 0xC000 Size: 0x60 Align: 0x1
+2026-02-24 13:51:11 [INFO]     PH[3] Type: 0x6474E552 Offset: 0xC000
+2026-02-24 13:51:11 [INFO]     PH[3] Type: 0x6474E552 Offset: 0xC000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[4] Offset: 0x10000 Size: 0x4 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[4] Type: 0x00000001 Offset: 0x10000
+2026-02-24 13:51:11 [INFO]     PH[4] Type: 0x00000001 Offset: 0x10000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[5] Offset: 0xC040 Size: 0x20 Align: 0x8
+2026-02-24 13:51:11 [INFO]     PH[5] Type: 0x61000002 Offset: 0xC040
+2026-02-24 13:51:11 [INFO]     PH[5] Type: 0x61000002 Offset: 0xC040
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[6] Offset: 0x10298 Size: 0x1B0 Align: 0x8
+2026-02-24 13:51:11 [INFO]     PH[6] Type: 0x00000002 Offset: 0x10298
+2026-02-24 13:51:11 [INFO]     PH[6] Type: 0x00000002 Offset: 0x10298
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[7] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:11 [INFO]     PH[7] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:11 [INFO]     PH[7] Type: 0x00000007 Offset: 0x0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[8] Offset: 0x9094 Size: 0x5C Align: 0x4
+2026-02-24 13:51:11 [INFO]     PH[8] Type: 0x6474E550 Offset: 0x9094
+2026-02-24 13:51:11 [INFO]     PH[8] Type: 0x6474E550 Offset: 0x9094
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[9] Offset: 0x10020 Size: 0x428 Align: 0x4000
+2026-02-24 13:51:11 [INFO]     PH[9] Type: 0x00000001 Offset: 0x10020
+2026-02-24 13:51:11 [INFO]     PH[9] Type: 0x00000001 Offset: 0x10020
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[10] Offset: 0x10450 Size: 0x40 Align: 0x10
+2026-02-24 13:51:11 [INFO]     PH[10] Type: 0x6FFFFF00 Offset: 0x10450
+2026-02-24 13:51:11 [INFO]     PH[10] Type: 0x6FFFFF00 Offset: 0x10450
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[11] Offset: 0x0 Size: 0x0 Align: 0x0
+2026-02-24 13:51:11 [INFO]     PH[11] Type: 0x6FFFFF01 Offset: 0x0
+2026-02-24 13:51:11 [INFO]     PH[11] Type: 0x6FFFFF01 Offset: 0x0
+2026-02-24 13:51:11 [INFO]     [ExtractElf] PH[12] Offset: 0x10270 Size: 0x24 Align: 0x4
+2026-02-24 13:51:11 [INFO]     PH[12] Type: 0x00000004 Offset: 0x10270
+2026-02-24 13:51:11 [INFO]     PH[12] Type: 0x00000004 Offset: 0x10270
+2026-02-24 13:51:11 [INFO]     First PT_LOAD offset should be 0x4000 → actual 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] First Segment Offset: 0x4000
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Last Segment Offset: 0x10450
+2026-02-24 13:51:11 [INFO]     [ExtractElf] Calculated Save Size: 0x10490
+2026-02-24 13:51:11 [INFO]     Error unpacking file: Source array was not long enough. Check the source index, length, and the array's lower bounds. (Parameter 'sourceArray')
+2026-02-24 13:51:11 [INFO]       eboot.bin (0/11)
+2026-02-24 13:51:11 [INFO]       libfmod.prx (1/11)
+2026-02-24 13:51:11 [INFO]       libfmodstudio.prx (2/11)
+2026-02-24 13:51:11 [INFO]       libc.prx (3/11)
+2026-02-24 13:51:11 [INFO]       libSceFace.prx (4/11)
+2026-02-24 13:51:11 [INFO]       libSceFaceTracker.prx (5/11)
+2026-02-24 13:51:11 [INFO]       libSceFontGsm.prx (6/11)
+2026-02-24 13:51:11 [INFO]       libSceJobManager.prx (7/11)
+2026-02-24 13:51:11 [INFO]       libSceNpCppWebApi.prx (8/11)
+2026-02-24 13:51:11 [INFO]       libScePfs.prx (9/11)
+2026-02-24 13:51:11 [INFO]       right.sprx (10/11)
+2026-02-24 13:51:11 [INFO]       Completed (11/11)
+2026-02-24 13:51:11 [INFO]     Copying fakelibs to: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\FW7 → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\FW7
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\libSceAgc.sprx → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\libSceAgc.sprx
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\libSceAgcDriver.sprx → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\libSceAgcDriver.sprx
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\libSceNpAuth.sprx → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\libSceNpAuth.sprx
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\libSceNpAuthAuthorizedAppDialog.sprx → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\libSceNpAuthAuthorizedAppDialog.sprx
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\libSceSaveData.native.sprx → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\libSceSaveData.native.sprx
+2026-02-24 13:51:11 [INFO]     Copied: C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib\ps5-backpork.elf → C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\fakelib\ps5-backpork.elf
+2026-02-24 13:51:11 [INFO]     UI list count = 11
+2026-02-24 13:51:44 [INFO]     ✅ Patching completed!
+✔ Files patched : 3
+⏭ Files skipped : 0
+📦 Fake libs FW : 7
+📁 Fake libs path : C:\Users\DroneTechTI\Documents\GitHub\PS5-BACKPORK-KITCHEN\PS5 BACKPORK KITCHEN\bin\Release\net8.0-windows\7\fakelib
+⏱ Duration : 2,41 seconds
+
+— File Results —
+Patched: eboot.bin
+❌ libfmod.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\prx\libfmod.prx
+❌ libfmodstudio.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\prx\libfmodstudio.prx
+Patched: libc.prx
+❌ libSceFace.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceFace.prx
+❌ libSceFaceTracker.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceFaceTracker.prx
+❌ libSceFontGsm.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceFontGsm.prx
+Patched: libSceJobManager.prx
+❌ libSceNpCppWebApi.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libSceNpCppWebApi.prx
+❌ libScePfs.prx — Invalid ELF format: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_module\libScePfs.prx
+❌ right.sprx — SELF decryption failed: C:\Users\DroneTechTI\Downloads\Looney.Tunes.Wacky.World.of.Sports.PS5-DUPLEX\PPSA19564-app0\sce_sys\about\right.sprx

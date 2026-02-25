@@ -49,5 +49,6 @@ Namespace Architecture.Domain.Models
         Public Property AutoVerify As Boolean = True
         Public Property SkipAlreadyPatched As Boolean = True
         Public Property ContinueOnError As Boolean = True
+
     End Class
 End Namespace
