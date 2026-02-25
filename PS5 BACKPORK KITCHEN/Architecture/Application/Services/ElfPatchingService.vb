@@ -289,7 +289,6 @@ Namespace Architecture.Application.Services
 
                     _logger.LogInfo($"Decrypting SELF → {tempDecryptedPath}")
 
-                    ' IMPORTANT: this must output decrypted SELF, not stripped ELF
                     If Not selfutilmodule.unpackfile(filePath, tempDecryptedPath) Then
                         Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
                     End If

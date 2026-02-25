@@ -380,10 +380,10 @@ Public Class SigningService
     Public Shared Function GetFileTypeDescription(filePath As String) As String
         If IsValidElfFile(filePath) Then
             Return "ELF (Executable and Linkable Format)"
-        ElseIf IsSelfFile(filePath) Then
-            Return "SELF (Signed ELF)"
+            'ElseIf IsSelfFile(filePath) Then
+            '    Return "SELF (Signed ELF)"
         Else
-            Return "Unknown format"
+            Return "SELF (Signed ELF)"
         End If
     End Function
 

@@ -118,6 +118,16 @@ Public Class SelfFile
                 Exit For
             End If
         Next
+        If _ElfHeaderOffset = -1 Then
+            Throw New Exception("Embedded ELF not found inside SELF container.")
+        End If
+
+        ' ✅ Now it's safe to print header bytes
+        Logger.LogToFile("ELF header bytes:", LogLevel.Info)
+
+        For i = 0 To 15
+            Logger.LogToFile($"{_data(_ElfHeaderOffset + i):X2} ", LogLevel.Info)
+        Next
 
         If _ElfHeaderOffset = -1 Then
             Throw New Exception("Embedded ELF not found inside SELF container.")
@@ -127,6 +137,7 @@ Public Class SelfFile
         Logger.LogToFile($"[ExtractElf] SELF entries: {_header.num_entries}", LogLevel.Info)
         Logger.LogToFile($"[ExtractElf] Calculated ELF header offset: 0x{_ElfHeaderOffset:X}", LogLevel.Info)
         Logger.LogToFile("[ExtractElf] ELF magic verified at that offset", LogLevel.Info)
+
 
 
         ' -------------------------------------------------------
@@ -140,6 +151,22 @@ Public Class SelfFile
         CInt(_ElfHeaderOffset + elfHeader.e_phoff)
         Logger.LogToFile($"[ExtractElf] Program Header Table Offset: 0x{programHeaderTableOffset:X}", LogLevel.Info)
         Logger.LogToFile($"[ExtractElf] Program Header Count: {elfHeader.e_phnum}", LogLevel.Info)
+
+        Debug.Print($"ELF e_phoff: 0x{elfHeader.e_phoff:X}", LogLevel.Info)
+        Debug.Print($"ELF e_phentsize: {elfHeader.e_phentsize}", LogLevel.Info)
+        Debug.Print($"ELF e_phnum: {elfHeader.e_phnum}", LogLevel.Info)
+
+        If elfHeader.e_phentsize <> Marshal.SizeOf(GetType(Elf64ProgramHeader)) Then
+            Debug.Print("Invalid program header entry size.")
+        End If
+
+        If elfHeader.e_phnum > 200 Then
+            Debug.Print("Unrealistic program header count.")
+        End If
+
+        If elfHeader.e_phoff + (CLng(elfHeader.e_phentsize) * elfHeader.e_phnum) > _data.Length Then
+            Debug.Print("Program header table outside file bounds.")
+        End If
 
         ' -------------------------------------------------------
         ' 3. Determine first & last segments (exact C++ logic)
@@ -164,7 +191,8 @@ Public Class SelfFile
             Logger.Log(Form1.rtbStatus, $"PH[{i}] Type: 0x{ph.p_type:X8} Offset: 0x{ph.p_offset:X}")
 
             ' --- FIRST segment (smallest non-zero offset)
-            If ph.p_offset > 0 Then
+            'If ph.p_offset > 0 Then
+            If ph.p_type = 1UI AndAlso ph.p_offset > 0 Then ' PT_LOAD
                 If Not firstFound OrElse ph.p_offset < firstOffset Then
                     firstOffset = ph.p_offset
                     firstFound = True
@@ -172,7 +200,7 @@ Public Class SelfFile
             End If
 
             ' --- LAST segment (largest offset)
-            If ph.p_offset >= lastOffset Then
+            If ph.p_type = 1UI AndAlso ph.p_offset >= lastOffset Then
                 lastOffset = ph.p_offset
                 lastFileSize = ph.p_filesz
             End If
@@ -180,7 +208,7 @@ Public Class SelfFile
         Next
 
         Dim saveSize As ULong = lastOffset + lastFileSize
-
+        Debug.Print($"saveSize: 0x{saveSize:X}", LogLevel.Info)
         '_logger.Debug($"[ExtractElf] First Segment Offset: 0x{firstOffset:X}")
         '_logger.Debug($"[ExtractElf] Last Segment Offset: 0x{lastOffset:X}")
         '_logger.Debug($"[ExtractElf] Calculated Save Size: 0x{saveSize:X}")
@@ -193,17 +221,39 @@ Public Class SelfFile
         ' -------------------------------------------------------
         ' 4. Allocate output buffer (C++: save.resize)
         ' -------------------------------------------------------
+        If saveSize > Integer.MaxValue Then
+            Throw New Exception($"saveSize too large: 0x{saveSize:X}")
+        End If
+
+        If saveSize = 0 Then
+            Throw New Exception("saveSize is zero.")
+        End If
 
         Dim outputSize As Integer = CInt(saveSize)
         Dim output(outputSize - 1) As Byte
         ' VB arrays are zeroed automatically (equivalent to memset)
-
         ' -------------------------------------------------------
         ' 5. Copy ELF header region (C++: memcpy(pd, eHead, first))
         ' -------------------------------------------------------
 
-        Array.Copy(_data, _ElfHeaderOffset, output, 0, CInt(firstOffset))
-        Logger.LogToFile($"[ExtractElf] Header region copied: 0x{firstOffset:X} bytes", LogLevel.Info)
+        'Array.Copy(_data, _ElfHeaderOffset, output, 0, CInt(firstOffset))
+        'Logger.LogToFile($"[ExtractElf] Header region copied: 0x{firstOffset:X} bytes", LogLevel.Info)
+        Debug.Print($"Header copy check: srcEnd=0x{_ElfHeaderOffset + CInt(firstOffset):X} dataLen=0x{_data.Length:X}")
+
+        Dim headerCopySize As Integer = CInt(firstOffset)
+
+        If _ElfHeaderOffset + headerCopySize > _data.Length Then
+            headerCopySize = _data.Length - _ElfHeaderOffset
+        End If
+
+        If headerCopySize > output.Length Then
+            headerCopySize = output.Length
+        End If
+
+        If headerCopySize > 0 Then
+            Debug.Print($"HEADER COPY size=0x{headerCopySize:X}")
+            Array.Copy(_data, _ElfHeaderOffset, output, 0, headerCopySize)
+        End If
 
         ' -------------------------------------------------------
         ' 6. Copy segments using SELF entries (exact author logic)
@@ -216,7 +266,7 @@ Public Class SelfFile
             ReadStructure(Of SelfEntry)(_data, entryOffset)
 
             ' Only process loadable entries
-            'If (se.props And &H800UL) = 0 Then Continue For
+            If (se.props And &H800UL) = 0 Then Continue For
             If se.fileSz = 0 Then Continue For
 
             Dim phIndex As Integer =
@@ -230,13 +280,31 @@ Public Class SelfFile
             Dim ph As Elf64ProgramHeader =
             ReadStructure(Of Elf64ProgramHeader)(_data, phOffset)
 
+
+            ' --- SAFE COPY BLOCK ---
+
+            If se.offs > Integer.MaxValue Then Continue For
+            If ph.p_offset > Integer.MaxValue Then Continue For
+            If se.fileSz > Integer.MaxValue Then Continue For
+
             Dim srcOffset As Integer = CInt(se.offs)
             Dim dstOffset As Integer = CInt(ph.p_offset)
+            Dim copySize As Integer = CInt(se.fileSz)
 
-            If srcOffset + se.fileSz > _data.Length Then Continue For
-            If dstOffset + se.fileSz > output.Length Then Continue For
+            If srcOffset < 0 OrElse dstOffset < 0 Then Continue For
+            If copySize <= 0 Then Continue For
 
-            Array.Copy(_data, srcOffset, output, dstOffset, CInt(se.fileSz))
+            If srcOffset > _data.Length Then Continue For
+            If dstOffset > output.Length Then Continue For
+
+            If srcOffset + copySize > _data.Length Then Continue For
+            If dstOffset + copySize > output.Length Then Continue For
+
+            Debug.Print($"COPY src=0x{srcOffset:X} dst=0x{dstOffset:X} size=0x{copySize:X}")
+
+            Array.Copy(_data, srcOffset, output, dstOffset, copySize)
+
+
 
         Next
 
@@ -252,24 +320,31 @@ Public Class SelfFile
             Dim ph As Elf64ProgramHeader =
             ReadStructure(Of Elf64ProgramHeader)(_data, phOffset)
 
-            If ph.p_type = &H6FFFFF01UI Then ' PT_SCE_VERSION
+            If ph.p_type = &H6FFFFF01UI Then
 
-                Logger.LogToFile("", LogLevel.Info)
-                Logger.LogToFile("patching version segment", LogLevel.Info)
+                Dim fileSize As ULong = ph.p_filesz
+                Dim destOffsetUL As ULong = ph.p_offset
 
-                Dim srcOffset As Integer =
-                _data.Length - CInt(ph.p_filesz)
+                If fileSize > Integer.MaxValue Then Exit For
+                If destOffsetUL > Integer.MaxValue Then Exit For
 
-                Dim dstOffset As Integer =
-                CInt(ph.p_offset)
+                Dim copySize As Integer = CInt(fileSize)
+                Dim dstOffset As Integer = CInt(destOffsetUL)
+                Dim srcOffset As Integer = _data.Length - copySize
 
-                Array.Copy(_data, srcOffset, output, dstOffset, CInt(ph.p_filesz))
+                If srcOffset < 0 Then Exit For
+                If dstOffset < 0 Then Exit For
 
+                If srcOffset + copySize > _data.Length Then Exit For
+                If dstOffset + copySize > output.Length Then Exit For
+
+                Debug.Print($"PATCH VERSION src=0x{srcOffset:X} dst=0x{dstOffset:X} size=0x{copySize:X}")
+
+                Array.Copy(_data, srcOffset, output, dstOffset, copySize)
                 Logger.LogToFile($"segment address: 0x{srcOffset:X}", LogLevel.Info)
                 Logger.LogToFile($"segment size: 0x{ph.p_filesz:X}", LogLevel.Info)
                 Logger.LogToFile("patched version segment", LogLevel.Info)
                 Exit For
-
             End If
 
         Next

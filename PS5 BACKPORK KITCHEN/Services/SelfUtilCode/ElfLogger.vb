@@ -51,8 +51,8 @@ Module ElfLogger
         ' ------------------------------------------------
         If hasMagic Then
             ElfLogger.WriteLine("Type: Standard ELF")
-        ElseIf LooksLikeStrippedElf(data) Then
-            ElfLogger.WriteLine("Type: Stripped / Zeroed ELF")
+            'ElseIf LooksLikeStrippedElf(data) Then
+            '    ElfLogger.WriteLine("Type: Stripped / Zeroed ELF")
         Else
             ElfLogger.WriteLine("Not a valid ELF structure.")
             Return
