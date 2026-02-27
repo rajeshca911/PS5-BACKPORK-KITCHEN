@@ -345,49 +345,69 @@ Namespace Services.GameSearch
         ''' </summary>
         Private Async Function FetchGamePageAsync(listing As GameSearchResult, cancellationToken As Threading.CancellationToken) As Task(Of List(Of GameSearchResult))
             Dim results As New List(Of GameSearchResult)
+            Dim html As String = ""
+            Dim cfBlocked As Boolean = False
 
-            Dim response = Await _httpClient.GetAsync(listing.DetailsUrl, cancellationToken)
-            If Not response.IsSuccessStatusCode Then
+            ' Try plain HTTP first
+            Try
+                Dim response = Await _httpClient.GetAsync(listing.DetailsUrl, cancellationToken)
+                If response.IsSuccessStatusCode Then
+                    html = Await response.Content.ReadAsStringAsync()
+                    cfBlocked = html.Contains("Just a moment") OrElse html.Contains("_cf_chl")
+                Else
+                    cfBlocked = True
+                End If
+            Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                cfBlocked = True
+            End Try
+
+            ' CF blocked → use Python DrissionPage to fetch the game page
+            If cfBlocked OrElse String.IsNullOrEmpty(html) Then
+                Debug.WriteLine($"[DLPS] Game page CF blocked — trying Python fetch for {listing.DetailsUrl}")
+                Try
+                    Dim pyResult = Await FetchGamePageViaPythonAsync(listing, cancellationToken)
+                    If pyResult.Count > 0 Then Return pyResult
+                Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                    Debug.WriteLine($"[DLPS] Python game page fetch error: {ex.Message}")
+                End Try
+                ' If Python also failed, return listing as-is
                 results.Add(listing)
                 Return results
             End If
 
-            Dim html = Await response.Content.ReadAsStringAsync()
+            ' Parse HTML from successful HTTP fetch
+            Return ParseGamePageHtml(html, listing)
+        End Function
 
-            ' Extract metadata
+        ''' <summary>
+        ''' Parses game page HTML to extract metadata, download links, and sections.
+        ''' </summary>
+        Private Function ParseGamePageHtml(html As String, listing As GameSearchResult) As List(Of GameSearchResult)
+            Dim results As New List(Of GameSearchResult)
+
             Dim gameTitle = listing.Title
             Dim titleMatch = Regex.Match(html, "<h1[^>]*>([^<]+)</h1>", RegexOptions.IgnoreCase)
             If titleMatch.Success Then
                 gameTitle = WebUtility.HtmlDecode(titleMatch.Groups(1).Value.Trim())
             End If
 
-            ' Extract region/PKG ID (multiple formats)
             Dim pkgIdMatch = Regex.Match(html,
                 "((?:PPSA|CUSA)\d{5})\s*[-–]?\s*(USA|EUR|JPN|ASIA|JP|EU|US)?",
                 RegexOptions.IgnoreCase)
             Dim region = If(pkgIdMatch.Success AndAlso pkgIdMatch.Groups(2).Success,
                            pkgIdMatch.Groups(2).Value.ToUpper(), listing.Region)
-            Dim pkgId = If(pkgIdMatch.Success, pkgIdMatch.Groups(1).Value, "")
 
-            ' Extract firmware requirement (multiple formats)
             Dim fwMatch = Regex.Match(html,
                 "(?:Works\s+on|Firmware|FW|Requires?)[^0-9]*(\d+\.\d+)",
                 RegexOptions.IgnoreCase)
             Dim firmware = If(fwMatch.Success, fwMatch.Groups(1).Value, "")
 
-            ' Extract genre
-            Dim genreMatch = Regex.Match(html, "GENRE\s*:\s*([^\r\n<]+)", RegexOptions.IgnoreCase)
-            Dim genre = If(genreMatch.Success, genreMatch.Groups(1).Value.Trim(), "")
-
-            ' Extract password (always DLPSGAME.COM)
             Dim pwMatch = Regex.Match(html, "Password\s*:\s*([^\r\n<]+)", RegexOptions.IgnoreCase)
             Dim password = If(pwMatch.Success, pwMatch.Groups(1).Value.Trim(), "")
 
-            ' Find all download links by host domain
             Dim allLinks = ExtractDownloadLinks(html)
 
             If allLinks.Count = 0 Then
-                ' No download links found, return listing as-is
                 listing.Title = gameTitle
                 listing.Region = region
                 listing.FirmwareRequired = firmware
@@ -395,33 +415,30 @@ Namespace Services.GameSearch
                 Return results
             End If
 
-            ' Try to parse structured download sections (Game, Update, DLC, Backport)
             Dim sections = ParseDownloadSections(html, allLinks)
 
             If sections.Count > 0 Then
                 For Each section In sections
-
                     Dim result As New GameSearchResult With {
-                .Title = $"{gameTitle} [{section.Label}]",
-                .DetailsUrl = listing.DetailsUrl,
-                .SourceProvider = DisplayName,
-                .Platform = listing.Platform,
-                .Region = region,
-                .FirmwareRequired = firmware,
-                .Category = section.Label,
-                .DownloadUrl = listing.DetailsUrl,
-                .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", ""),
-                .Uploader = If(section.Links.Count > 0,
-                    String.Join(" | ", section.Links.Select(Function(l) $"{l.HostName}: {l.Url}")),
-                    "")
-    }
+                        .Title = $"{gameTitle} [{section.Label}]",
+                        .DetailsUrl = listing.DetailsUrl,
+                        .SourceProvider = DisplayName,
+                        .Platform = listing.Platform,
+                        .Region = region,
+                        .FirmwareRequired = firmware,
+                        .Category = section.Label,
+                        .DownloadUrl = listing.DetailsUrl,
+                        .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", ""),
+                        .Uploader = If(section.Links.Count > 0,
+                            String.Join(" | ", section.Links.Select(Function(l) $"{l.HostName}: {l.Url}")),
+                            "")
+                    }
 
-                    ' ✅ ADD THIS — YOU MISSED IT
                     For Each l In section.Links
                         result.DownloadLinks.Add(New HostLink With {
-            .Host = l.HostName,
-            .Url = l.Url
-        })
+                            .Host = l.HostName,
+                            .Url = l.Url
+                        })
                     Next
 
                     If section.Links.Count > 0 Then
@@ -429,18 +446,157 @@ Namespace Services.GameSearch
                     End If
 
                     results.Add(result)
+                Next
+            Else
+                ' No sections found — add all links as a single result
+                Dim result As New GameSearchResult With {
+                    .Title = gameTitle,
+                    .DetailsUrl = listing.DetailsUrl,
+                    .SourceProvider = DisplayName,
+                    .Platform = listing.Platform,
+                    .Region = region,
+                    .FirmwareRequired = firmware,
+                    .Category = "Game",
+                    .DownloadUrl = listing.DetailsUrl,
+                    .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", ""),
+                    .Uploader = String.Join(" | ", allLinks.Select(Function(l) $"{l.HostName}: {l.Url}"))
+                }
 
+                For Each l In allLinks
+                    result.DownloadLinks.Add(New HostLink With {
+                        .Host = l.HostName,
+                        .Url = l.Url
+                    })
                 Next
 
+                If allLinks.Count > 0 Then
+                    result.MagnetLink = allLinks(0).Url
+                End If
 
-                '' keep first link as primary
-                'If allLinks.Count > 0 Then
-                '    result.MagnetLink = allLinks(0).Url
-                'End If
-
-                'results.Add(result)
-
+                results.Add(result)
             End If
+
+            Return results
+        End Function
+
+        ''' <summary>
+        ''' Uses the Python dlps_search.py script to fetch a game page via DrissionPage,
+        ''' bypassing Cloudflare Turnstile, and extract download links + metadata.
+        ''' </summary>
+        Private Shared Async Function FetchGamePageViaPythonAsync(
+            listing As GameSearchResult,
+            ct As Threading.CancellationToken
+        ) As Task(Of List(Of GameSearchResult))
+
+            Dim results As New List(Of GameSearchResult)
+
+            Dim scriptPath = FindScriptPath("dlps_search.py")
+            If scriptPath Is Nothing Then Return results
+
+            Dim outputBuilder As New Text.StringBuilder()
+            Try
+                Dim exitCode = Await PythonRunner.RunAsync(
+                    scriptPath, $"--fetch-page ""{listing.DetailsUrl}""",
+                    onOutput:=Sub(line) outputBuilder.AppendLine(line),
+                    onError:=Sub(line) Debug.WriteLine($"[DLPS-PY] stderr: {line}"),
+                    ct:=ct)
+
+                If exitCode <> 0 Then Return results
+
+                Dim jsonOutput = outputBuilder.ToString().Trim()
+                Dim jsonStart = jsonOutput.IndexOf("{"c)
+                If jsonStart < 0 Then Return results
+                jsonOutput = jsonOutput.Substring(jsonStart)
+
+                Dim parsed = Newtonsoft.Json.Linq.JObject.Parse(jsonOutput)
+
+                Dim gameTitle = CStr(If(parsed("title"), listing.Title))
+                Dim region = CStr(If(parsed("region"), listing.Region))
+                Dim firmware = CStr(If(parsed("firmware"), ""))
+                Dim password = CStr(If(parsed("password"), ""))
+
+                ' Parse sections first
+                Dim sectionsToken = parsed("sections")
+                If sectionsToken IsNot Nothing AndAlso sectionsToken.HasValues Then
+                    For Each sec As Newtonsoft.Json.Linq.JObject In sectionsToken
+                        Dim label = CStr(If(sec("label"), "Game"))
+                        Dim linksToken = sec("links")
+
+                        Dim result As New GameSearchResult With {
+                            .Title = $"{gameTitle} [{label}]",
+                            .DetailsUrl = listing.DetailsUrl,
+                            .SourceProvider = "DLPSGame",
+                            .Platform = listing.Platform,
+                            .Region = region,
+                            .FirmwareRequired = firmware,
+                            .Category = label,
+                            .DownloadUrl = listing.DetailsUrl,
+                            .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", "")
+                        }
+
+                        Dim uploaderParts As New List(Of String)
+                        If linksToken IsNot Nothing Then
+                            For Each lnk As Newtonsoft.Json.Linq.JObject In linksToken
+                                Dim host = CStr(If(lnk("host"), ""))
+                                Dim url = CStr(If(lnk("url"), ""))
+                                If Not String.IsNullOrEmpty(url) Then
+                                    result.DownloadLinks.Add(New HostLink With {.Host = host, .Url = url})
+                                    uploaderParts.Add($"{host}: {url}")
+                                End If
+                            Next
+                        End If
+
+                        result.Uploader = String.Join(" | ", uploaderParts)
+                        If result.DownloadLinks.Count > 0 Then
+                            result.MagnetLink = result.DownloadLinks(0).Url
+                        End If
+
+                        results.Add(result)
+                    Next
+                End If
+
+                ' If no sections, use flat links
+                If results.Count = 0 Then
+                    Dim linksToken = parsed("links")
+                    If linksToken IsNot Nothing AndAlso linksToken.HasValues Then
+                        Dim result As New GameSearchResult With {
+                            .Title = gameTitle,
+                            .DetailsUrl = listing.DetailsUrl,
+                            .SourceProvider = "DLPSGame",
+                            .Platform = listing.Platform,
+                            .Region = region,
+                            .FirmwareRequired = firmware,
+                            .Category = "Game",
+                            .DownloadUrl = listing.DetailsUrl,
+                            .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", "")
+                        }
+
+                        Dim uploaderParts As New List(Of String)
+                        For Each lnk As Newtonsoft.Json.Linq.JObject In linksToken
+                            Dim host = CStr(If(lnk("host"), ""))
+                            Dim url = CStr(If(lnk("url"), ""))
+                            If Not String.IsNullOrEmpty(url) Then
+                                result.DownloadLinks.Add(New HostLink With {.Host = host, .Url = url})
+                                uploaderParts.Add($"{host}: {url}")
+                            End If
+                        Next
+
+                        result.Uploader = String.Join(" | ", uploaderParts)
+                        If result.DownloadLinks.Count > 0 Then
+                            result.MagnetLink = result.DownloadLinks(0).Url
+                        End If
+
+                        results.Add(result)
+                    End If
+                End If
+
+                Debug.WriteLine($"[DLPS-PY] Game page: {results.Count} results, {results.Sum(Function(r) r.DownloadLinks.Count)} download links")
+
+            Catch ex As OperationCanceledException
+                Throw
+            Catch ex As Exception
+                Debug.WriteLine($"[DLPS-PY] Game page error: {ex.Message}")
+            End Try
 
             Return results
         End Function
@@ -946,19 +1102,18 @@ Namespace Services.GameSearch
                 Return results
             End If
 
-            ' Build args
+            ' Build args — full search fetches game details + download links in one session
             Dim escapedQuery = searchTerm.Replace("""", "\""")
-            Dim arguments = $"""{scriptPath}"" --query ""{escapedQuery}"" --max {maxResults}"
+            Dim fetchDetails = Math.Min(maxResults, 8)
 
-            Debug.WriteLine($"[DLPS-PY] Running: {pythonPath} {arguments}")
+            Debug.WriteLine($"[DLPS-PY] Running full search: query=""{escapedQuery}"" max={maxResults} details={fetchDetails}")
 
-            ' Capture all stdout into a single string
             Dim outputBuilder As New Text.StringBuilder()
             Dim errorBuilder As New Text.StringBuilder()
 
             Try
                 Dim exitCode = Await PythonRunner.RunAsync(
-                    scriptPath, $"--query ""{escapedQuery}"" --max {maxResults}",
+                    scriptPath, $"--query ""{escapedQuery}"" --max {maxResults} --fetch-details {fetchDetails}",
                     onOutput:=Sub(line) outputBuilder.AppendLine(line),
                     onError:=Sub(line)
                                 errorBuilder.AppendLine(line)
@@ -973,24 +1128,20 @@ Namespace Services.GameSearch
                     Return results
                 End If
 
-                ' Parse JSON output
                 Dim jsonOutput = outputBuilder.ToString().Trim()
                 If String.IsNullOrEmpty(jsonOutput) Then Return results
 
-                ' Find the JSON object (skip any non-JSON lines from stderr/warnings)
                 Dim jsonStart = jsonOutput.IndexOf("{"c)
                 If jsonStart < 0 Then Return results
                 jsonOutput = jsonOutput.Substring(jsonStart)
 
                 Dim parsed = Newtonsoft.Json.Linq.JObject.Parse(jsonOutput)
 
-                ' Check for error
                 Dim errToken = parsed("error")
                 If errToken IsNot Nothing AndAlso errToken.Type <> Newtonsoft.Json.Linq.JTokenType.Null Then
                     Debug.WriteLine($"[DLPS-PY] Script error: {CStr(errToken)}")
                 End If
 
-                ' Parse results array
                 Dim items = parsed("results")
                 If items Is Nothing Then Return results
 
@@ -999,16 +1150,78 @@ Namespace Services.GameSearch
                     Dim url = CStr(If(item("url"), ""))
                     If String.IsNullOrEmpty(title) OrElse String.IsNullOrEmpty(url) Then Continue For
 
-                    results.Add(New GameSearchResult With {
-                        .Title = title,
-                        .DetailsUrl = url,
-                        .SourceProvider = "DLPSGame",
-                        .Platform = CStr(If(item("platform"), "")),
-                        .Category = CStr(If(item("category"), "Game"))
-                    })
+                    Dim password = CStr(If(item("password"), ""))
+                    Dim region = CStr(If(item("region"), ""))
+                    Dim firmware = CStr(If(item("firmware"), ""))
+
+                    ' Check if this result has sections (organized download links)
+                    Dim sectionsToken = item("sections")
+                    If sectionsToken IsNot Nothing AndAlso sectionsToken.HasValues Then
+                        ' Create one result per section (Game, Update, DLC, Backport)
+                        For Each sec As Newtonsoft.Json.Linq.JObject In sectionsToken
+                            Dim label = CStr(If(sec("label"), "Game"))
+                            Dim result As New GameSearchResult With {
+                                .Title = $"{title} [{label}]",
+                                .DetailsUrl = url,
+                                .SourceProvider = "DLPSGame",
+                                .Platform = CStr(If(item("platform"), "")),
+                                .Region = region,
+                                .FirmwareRequired = firmware,
+                                .Category = label,
+                                .DownloadUrl = url,
+                                .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", "")
+                            }
+
+                            Dim uploaderParts As New List(Of String)
+                            Dim linksToken = sec("links")
+                            If linksToken IsNot Nothing Then
+                                For Each lnk As Newtonsoft.Json.Linq.JObject In linksToken
+                                    Dim host = CStr(If(lnk("host"), ""))
+                                    Dim lnkUrl = CStr(If(lnk("url"), ""))
+                                    If Not String.IsNullOrEmpty(lnkUrl) Then
+                                        result.DownloadLinks.Add(New HostLink With {.Host = host, .Url = lnkUrl})
+                                        uploaderParts.Add($"{host}: {lnkUrl}")
+                                    End If
+                                Next
+                            End If
+                            result.Uploader = String.Join(" | ", uploaderParts)
+                            If result.DownloadLinks.Count > 0 Then result.MagnetLink = result.DownloadLinks(0).Url
+                            results.Add(result)
+                        Next
+                    Else
+                        ' Flat links (no sections) or listing-only result
+                        Dim result As New GameSearchResult With {
+                            .Title = title,
+                            .DetailsUrl = url,
+                            .SourceProvider = "DLPSGame",
+                            .Platform = CStr(If(item("platform"), "")),
+                            .Region = region,
+                            .FirmwareRequired = firmware,
+                            .Category = "Game",
+                            .DownloadUrl = url,
+                            .Size = If(Not String.IsNullOrEmpty(password), $"Password: {password}", "")
+                        }
+
+                        Dim linksToken = item("links")
+                        If linksToken IsNot Nothing Then
+                            Dim uploaderParts As New List(Of String)
+                            For Each lnk As Newtonsoft.Json.Linq.JObject In linksToken
+                                Dim host = CStr(If(lnk("host"), ""))
+                                Dim lnkUrl = CStr(If(lnk("url"), ""))
+                                If Not String.IsNullOrEmpty(lnkUrl) Then
+                                    result.DownloadLinks.Add(New HostLink With {.Host = host, .Url = lnkUrl})
+                                    uploaderParts.Add($"{host}: {lnkUrl}")
+                                End If
+                            Next
+                            result.Uploader = String.Join(" | ", uploaderParts)
+                            If result.DownloadLinks.Count > 0 Then result.MagnetLink = result.DownloadLinks(0).Url
+                        End If
+
+                        results.Add(result)
+                    End If
                 Next
 
-                Debug.WriteLine($"[DLPS-PY] Parsed {results.Count} results from JSON")
+                Debug.WriteLine($"[DLPS-PY] Parsed {results.Count} results, {results.Sum(Function(r) r.DownloadLinks.Count)} download links")
 
             Catch ex As OperationCanceledException
                 Throw
