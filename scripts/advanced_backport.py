@@ -1,13 +1,13 @@
 """
-Advanced Backport Orchestrator — Unified pipeline for PS5 PRX backporting.
+Advanced Backport Orchestrator -- Unified pipeline for PS5 PRX backporting.
 
 Steps:
-  1. ELF Analysis    — detect SDK versions, missing symbols, missing libs
-  2. BPS Patching    — apply available binary patches from patch_database.json
-  3. Auto-Stubbing   — stub remaining missing symbols with ARM64 ret-zero
-  4. SDK Version Fix — patch PS5/PS4 SDK bytes to match target firmware
-  5. Re-signing      — (placeholder) call external sign tool if requested
-  6. Final Report    — JSON + color summary
+  1. ELF Analysis    -- detect SDK versions, missing symbols, missing libs
+  2. BPS Patching    -- apply available binary patches from patch_database.json
+  3. Auto-Stubbing   -- stub remaining missing symbols with ARM64 ret-zero
+  4. SDK Version Fix -- patch PS5/PS4 SDK bytes to match target firmware
+  5. Re-signing      -- (placeholder) call external sign tool if requested
+  6. Final Report    -- JSON + color summary
 
 Usage:
   python advanced_backport.py \\
@@ -76,14 +76,19 @@ def _c(text, color):
 
 
 def _log(msg, color=None):
-    if color:
-        print(_c(msg, color))
-    else:
-        print(msg)
+    # Ensure output works on Windows cp1252 consoles
+    try:
+        if color:
+            print(_c(msg, color))
+        else:
+            print(msg)
+    except UnicodeEncodeError:
+        safe = msg.encode("ascii", errors="replace").decode("ascii")
+        print(safe)
 
 
 def _header(title):
-    bar = "─" * 60
+    bar = "-" * 60
     _log("\n{} {} {}".format(bar[:4], title, bar), BOLD)
 
 
@@ -96,30 +101,48 @@ def _header(title):
 # VersionProfiles from VB.NET project define pairs:
 #   (ps5_sdk_bytes_current, ps5_sdk_bytes_target)
 
+def _fw_to_major(fw_str: str) -> int:
+    """Convert firmware version string (e.g. '9.60') to major version int (9)."""
+    try:
+        return int(fw_str.split(".")[0])
+    except (ValueError, IndexError):
+        return -1
+
+
+# SDK byte pairs per major firmware version -- matches VersionProfiles.vb exactly.
+# Key = major firmware version (int).
+# Value = (PS5_SDK_uint32, PS4_SDK_uint32) stored as little-endian in the binary.
+_SDK_PAIRS: dict[int, tuple[int, int]] = {
+    1:  (0x01000050, 0x07590001),
+    2:  (0x02000009, 0x08050001),
+    3:  (0x03000027, 0x08540001),
+    4:  (0x04000031, 0x09040001),
+    5:  (0x05000033, 0x09590001),
+    6:  (0x06000038, 0x10090001),
+    7:  (0x07000038, 0x10590001),
+    8:  (0x08000041, 0x11090001),
+    9:  (0x09000040, 0x11590001),
+    10: (0x10000040, 0x12090001),
+}
+
+
 def _patch_sdk_version_in_file(file_path: str, fw_from: str, fw_to: str) -> bool:
     """Patch PS5/PS4 SDK version bytes in a binary file (ELF/SELF/PRX).
     Returns True if any bytes were patched.
     """
-    # Map firmware version string to known SDK uint32 constants
-    # Extend this table with real values from VersionProfiles.vb
-    FW_SDK_MAP: dict[str, tuple[int, int]] = {
-        # fw_string: (ps5_sdk_uint32, ps4_sdk_uint32)  — little-endian in file
-        "7.61":  (0x07610001, 0x09508001),
-        "8.00":  (0x08000001, 0x09508001),
-        "8.52":  (0x08520001, 0x09508001),
-        "9.00":  (0x09000001, 0x09508001),
-        "9.60":  (0x09600001, 0x09508001),
-        "10.00": (0x0A000040, 0x12090001),
-        "10.01": (0x0A010040, 0x12090001),
-        "10.50": (0x0A500040, 0x12090001),
-        "11.00": (0x0B000040, 0x12090001),
-    }
+    major_from = _fw_to_major(fw_from)
+    major_to = _fw_to_major(fw_to)
 
-    if fw_from not in FW_SDK_MAP or fw_to not in FW_SDK_MAP:
+    if major_from not in _SDK_PAIRS or major_to not in _SDK_PAIRS:
+        _log("  [SDK] Unsupported firmware: {} -> {} (major {} -> {})".format(
+            fw_from, fw_to, major_from, major_to), YELLOW)
         return False
 
-    ps5_from, ps4_from = FW_SDK_MAP[fw_from]
-    ps5_to,   ps4_to   = FW_SDK_MAP[fw_to]
+    if major_from == major_to:
+        return False
+
+    ps5_from, ps4_from = _SDK_PAIRS[major_from]
+    ps5_to,   ps4_to   = _SDK_PAIRS[major_to]
 
     with open(file_path, "rb") as f:
         data = bytearray(f.read())
@@ -188,9 +211,10 @@ class BackportPipeline:
         try:
             ELFAnalyzer, ELFAnalyzerError = _import_elf()
         except ImportError:
-            _log("[WARN] pyelftools not installed — skipping analysis", YELLOW)
+            _log("[WARN] pyelftools not installed -- skipping analysis", YELLOW)
             return
 
+        encrypted_count = 0
         for fpath in files:
             try:
                 analyzer = ELFAnalyzer(fpath)
@@ -199,12 +223,25 @@ class BackportPipeline:
                 fname = os.path.basename(fpath)
                 self.results["step_analysis"][fname] = report
                 score = report["compatibility_score"]
-                color = GREEN if score >= 90 else (YELLOW if score >= 70 else RED)
-                _log("  {} — score: {}%  missing: {}".format(
-                    fname, score, len(report["missing_symbols"])), color)
+                is_self = report.get("is_self", False)
+                note = report.get("note", "")
+
+                if is_self and "encrypted" in note.lower():
+                    encrypted_count += 1
+                    sdk_str = report.get("sdk_ps5", "unknown")
+                    _log("  {} -- SELF encrypted (SDK: {})".format(
+                        fname, sdk_str), YELLOW)
+                else:
+                    color = GREEN if score >= 90 else (YELLOW if score >= 70 else RED)
+                    _log("  {} -- score: {}%  missing: {}".format(
+                        fname, score, len(report["missing_symbols"])), color)
             except Exception as ex:
                 _log("  [WARN] Could not analyze {}: {}".format(
                     os.path.basename(fpath), ex), YELLOW)
+
+        if encrypted_count > 0:
+            _log("  [INFO] {} files are encrypted SELF -- SDK patching will still be attempted".format(
+                encrypted_count), DIM)
 
     # ---- Step 2: BPS Patching ------------------------------------------
 
@@ -215,7 +252,7 @@ class BackportPipeline:
         try:
             PatchDatabase, BPSError = _import_bps()
         except ImportError:
-            _log("[WARN] bps_engine not available — skipping BPS step", YELLOW)
+            _log("[WARN] bps_engine not available -- skipping BPS step", YELLOW)
             return
 
         db = PatchDatabase(self.args.db)
@@ -237,7 +274,7 @@ class BackportPipeline:
                 os.replace(out, fpath)
                 self.results["step_bps"]["applied"].append(fname)
             except Exception as ex:
-                _log("  [ERR] {} — {}".format(fname, ex), RED)
+                _log("  [ERR] {} -- {}".format(fname, ex), RED)
                 self.results["step_bps"]["errors"].append(
                     {"file": fname, "error": str(ex)})
 
@@ -250,7 +287,7 @@ class BackportPipeline:
         try:
             AutoStubber, AutoStubberError = _import_stubber()
         except ImportError:
-            _log("[WARN] capstone/keystone not installed — skipping stub step", YELLOW)
+            _log("[WARN] capstone/keystone not installed -- skipping stub step", YELLOW)
             return
 
         for fpath in files:
@@ -266,11 +303,11 @@ class BackportPipeline:
                     stubber.save(fpath)
                     self.results["step_stub"]["stubbed"].extend(res["stubbed"])
                 self.results["step_stub"]["not_found"].extend(res["not_found"])
-                _log("  {} — stubbed: {} / not_found: {}".format(
+                _log("  {} -- stubbed: {} / not_found: {}".format(
                     fname, len(res["stubbed"]), len(res["not_found"])),
                     GREEN if res["stubbed"] else YELLOW)
             except Exception as ex:
-                _log("  [ERR] {} — {}".format(fname, ex), RED)
+                _log("  [ERR] {} -- {}".format(fname, ex), RED)
                 self.results["step_stub"]["errors"].append(
                     {"file": fname, "error": str(ex)})
 
@@ -278,6 +315,13 @@ class BackportPipeline:
 
     def step_sdk_patch(self, files: list[str]):
         _header("Step 4: SDK Version Patch")
+        major_from = _fw_to_major(self.args.fw_current)
+        major_to = _fw_to_major(self.args.fw_target)
+        if major_from in _SDK_PAIRS and major_to in _SDK_PAIRS:
+            ps5_f, ps4_f = _SDK_PAIRS[major_from]
+            ps5_t, ps4_t = _SDK_PAIRS[major_to]
+            _log("  PS5 SDK: 0x{:08X} -> 0x{:08X}".format(ps5_f, ps5_t), DIM)
+            _log("  PS4 SDK: 0x{:08X} -> 0x{:08X}".format(ps4_f, ps4_t), DIM)
         for fpath in files:
             fname = os.path.basename(fpath)
             try:
@@ -285,9 +329,10 @@ class BackportPipeline:
                     fpath, self.args.fw_current, self.args.fw_target)
                 if patched:
                     self.results["step_sdk_patch"]["patched"].append(fname)
-                    _log("  [SDK] {} — patched".format(fname), GREEN)
+                    _log("  [SDK] {} -- patched".format(fname), GREEN)
                 else:
                     self.results["step_sdk_patch"]["skipped"].append(fname)
+                    _log("  [SDK] {} -- no match (skipped)".format(fname), DIM)
             except Exception as ex:
                 _log("  [WARN] SDK patch failed for {}: {}".format(fname, ex), YELLOW)
 
@@ -299,7 +344,7 @@ class BackportPipeline:
         _header("Step 5: Re-signing")
         selfutil = self.args.selfutil
         if not selfutil or not os.path.exists(selfutil):
-            _log("[WARN] --selfutil not found — skipping re-signing", YELLOW)
+            _log("[WARN] --selfutil not found -- skipping re-signing", YELLOW)
             return
         import subprocess
         for fpath in files:
@@ -310,13 +355,13 @@ class BackportPipeline:
                     capture_output=True, text=True, timeout=60)
                 if proc.returncode == 0:
                     self.results["step_resign"]["resigned"].append(fname)
-                    _log("  [SIGN] {} — OK".format(fname), GREEN)
+                    _log("  [SIGN] {} -- OK".format(fname), GREEN)
                 else:
-                    _log("  [SIGN] {} — FAILED: {}".format(fname, proc.stderr[:200]), RED)
+                    _log("  [SIGN] {} -- FAILED: {}".format(fname, proc.stderr[:200]), RED)
                     self.results["step_resign"]["errors"].append(
                         {"file": fname, "error": proc.stderr[:200]})
             except Exception as ex:
-                _log("  [SIGN] {} — error: {}".format(fname, ex), RED)
+                _log("  [SIGN] {} -- error: {}".format(fname, ex), RED)
                 self.results["step_resign"]["errors"].append(
                     {"file": fname, "error": str(ex)})
 
@@ -324,12 +369,26 @@ class BackportPipeline:
 
     def run(self):
         t0 = time.time()
-        _log(_c("\n[ABP] Advanced Backport Pipeline — {} → {}".format(
+        _log(_c("\n[ABP] Advanced Backport Pipeline -- {} -> {}".format(
             self.args.fw_current, self.args.fw_target), BOLD + CYAN))
 
         files = self.collect_files()
         if not files:
             _log("[WARN] No target files found in {}".format(self.args.game_folder), YELLOW)
+
+        # Auto-backup before modifying in-place
+        if not self.args.output_folder or self.args.output_folder == self.args.game_folder:
+            backup_dir = os.path.join(self.args.game_folder, "backup_pre_backport")
+            if not os.path.exists(backup_dir):
+                _log("[ABP] Creating backup in backup_pre_backport/ ...", DIM)
+                for fpath in files:
+                    rel = os.path.relpath(fpath, self.args.game_folder)
+                    dst = os.path.join(backup_dir, rel)
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    shutil.copy2(fpath, dst)
+                _log("[ABP] Backup created ({} files)".format(len(files)), GREEN)
+            else:
+                _log("[ABP] Backup already exists -- skipping", DIM)
 
         # Copy to output folder if different
         if self.args.output_folder and self.args.output_folder != self.args.game_folder:
