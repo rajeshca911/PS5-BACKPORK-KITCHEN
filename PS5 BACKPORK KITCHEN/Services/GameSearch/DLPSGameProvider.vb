@@ -117,6 +117,8 @@ Namespace Services.GameSearch
                 Dim encodedSearch = Uri.EscapeDataString(searchTerm)
                 Dim searchUrl = $"{BASE_URL}/?s={encodedSearch}"
 
+                Debug.WriteLine($"[DLPS] Search URL: {searchUrl}")
+
                 ' -------- Step 1: try plain HTTP fetch --------
                 Dim html As String = ""
                 Dim cfBlocked As Boolean = True
@@ -124,13 +126,16 @@ Namespace Services.GameSearch
                     Dim request As New Net.Http.HttpRequestMessage(Net.Http.HttpMethod.Get, searchUrl)
                     request.Headers.Add("Referer", BASE_URL & "/")
                     Dim response = Await _httpClient.SendAsync(request, cancellationToken)
+                    Debug.WriteLine($"[DLPS] HTTP status: {response.StatusCode}")
                     If response.IsSuccessStatusCode Then
                         html = Await response.Content.ReadAsStringAsync()
                         cfBlocked = html.Contains("Just a moment") OrElse
                                     html.Contains("cf-browser-verification") OrElse
                                     html.Contains("_cf_chl")
+                        Debug.WriteLine($"[DLPS] HTML length: {html.Length}, CF blocked: {cfBlocked}")
                     End If
                 Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                    Debug.WriteLine($"[DLPS] HTTP error: {ex.Message}")
                     html = ""
                     cfBlocked = True
                 End Try
@@ -143,21 +148,43 @@ Namespace Services.GameSearch
 
                 If cfBlocked Then
                     _status.LastError = "Cloudflare — trying browser bypass..."
+                    Debug.WriteLine("[DLPS] CF blocked — launching WebView2 bypass...")
                     Try
                         listingResults = Await ExtractLinksViaJsAsync(searchUrl)
+                        Debug.WriteLine($"[DLPS] WebView2 JS extraction returned {listingResults.Count} results")
                     Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                        Debug.WriteLine($"[DLPS] WebView2 error: {ex.Message}")
+                    End Try
+                End If
+
+                ' -------- Step 2b: If JS extraction failed, try fetching full HTML via browser --------
+                If listingResults.Count = 0 AndAlso cfBlocked Then
+                    Debug.WriteLine("[DLPS] JS extraction returned 0 — trying full HTML browser fetch...")
+                    Try
+                        html = Await FetchWithWebBrowserAsync(searchUrl)
+                        Debug.WriteLine($"[DLPS] Browser HTML length: {If(html IsNot Nothing, html.Length, 0)}")
+                        If Not String.IsNullOrEmpty(html) AndAlso html.Length > 500 Then
+                            cfBlocked = html.Contains("Just a moment") OrElse html.Contains("_cf_chl")
+                            Debug.WriteLine($"[DLPS] Browser CF still blocked: {cfBlocked}")
+                        End If
+                    Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                        Debug.WriteLine($"[DLPS] Browser fetch error: {ex.Message}")
                     End Try
                 End If
 
                 ' -------- Step 3: parse HTML (direct HTTP or fallback) --------
                 If listingResults.Count = 0 AndAlso Not String.IsNullOrEmpty(html) AndAlso html.Length >= 500 Then
                     listingResults = ParseListingPage(html)
+                    Debug.WriteLine($"[DLPS] ParseListingPage returned {listingResults.Count} results")
                 End If
 
                 If listingResults.Count = 0 Then
                     _status.LastError = If(cfBlocked, "Cloudflare bypass failed or no results", "No results found")
+                    Debug.WriteLine($"[DLPS] FINAL: 0 results — {_status.LastError}")
                     Return results
                 End If
+
+                Debug.WriteLine($"[DLPS] Found {listingResults.Count} listing results")
 
                 ' Filter by platform if requested
                 If query.Platform = GamePlatform.PS5 Then
@@ -571,8 +598,6 @@ Namespace Services.GameSearch
         ''' <summary>
         ''' Uses WebView2 (Chromium/Edge engine) to load a page and execute its JavaScript,
         ''' including Cloudflare's "Just a moment" managed challenge.
-        ''' Chromium handles all modern JS — the CF challenge resolves automatically.
-        ''' A hidden form hosts the WebView2 control on the UI thread.
         ''' Returns the full HTML after CF clearance, or "" on timeout/error.
         ''' </summary>
         Friend Shared Async Function FetchWithWebBrowserAsync(url As String) As Task(Of String)
@@ -580,11 +605,9 @@ Namespace Services.GameSearch
 
             Dim doWork As Action = Sub()
                 Try
-                    ' Hidden form to host WebView2
                     Dim frm As New Form() With {
                         .Width = 1, .Height = 1,
-                        .ShowInTaskbar = False,
-                        .Opacity = 0,
+                        .ShowInTaskbar = False, .Opacity = 0,
                         .FormBorderStyle = FormBorderStyle.None,
                         .StartPosition = FormStartPosition.Manual,
                         .Location = New Drawing.Point(-10000, -10000)
@@ -600,62 +623,84 @@ Namespace Services.GameSearch
                         Try : frm.Close() : frm.Dispose() : Catch : End Try
                     End Sub
 
-                    ' Polling timer: every 2s check if CF challenge is done
                     Dim pollTimer As New Timer() With {.Interval = 2000}
                     Dim pollCount As Integer = 0
-                    Dim cfClearedAt As Integer = -1  ' track when CF cleared
+                    Dim cfClearedAt As Integer = -1
+                    Dim navigationDone As Boolean = False
 
                     AddHandler pollTimer.Tick, Async Sub(s, e)
                         pollCount += 1
                         pollTimer.Stop()
 
                         Try
-                            ' Check page title
-                            Dim title = If(wv.CoreWebView2?.DocumentTitle, "")
-
-                            Dim cfDone = Not title.Contains("Just a moment") AndAlso
-                                         pollCount > 1
-
-                            ' Track when CF first clears
-                            If cfDone AndAlso cfClearedAt < 0 Then
-                                cfClearedAt = pollCount
+                            If wv.CoreWebView2 Is Nothing Then
+                                Debug.WriteLine($"[DLPS-WV] Poll #{pollCount}: CoreWebView2 is null")
+                                If pollCount >= 20 Then
+                                    doCleanup()
+                                    tcs.TrySetResult("")
+                                    Return
+                                End If
+                                If Not cleanedUp Then pollTimer.Start()
+                                Return
                             End If
 
-                            ' Wait 2 extra cycles after CF clears for AJAX content to load
+                            Dim title = If(wv.CoreWebView2.DocumentTitle, "")
+                            Debug.WriteLine($"[DLPS-WV] Poll #{pollCount}: title='{title}' navDone={navigationDone}")
+
+                            Dim cfDone = navigationDone AndAlso
+                                         Not title.Contains("Just a moment") AndAlso
+                                         pollCount > 2
+
+                            If cfDone AndAlso cfClearedAt < 0 Then
+                                cfClearedAt = pollCount
+                                Debug.WriteLine($"[DLPS-WV] CF cleared at poll #{pollCount}")
+                            End If
+
                             Dim contentReady = (cfClearedAt > 0 AndAlso pollCount >= cfClearedAt + 2)
 
-                            If contentReady OrElse pollCount >= 15 Then  ' max ~30 seconds
-                                ' Extract full HTML via JS
+                            If contentReady OrElse pollCount >= 20 Then
                                 Dim jsResult = Await wv.CoreWebView2.ExecuteScriptAsync(
                                     "document.documentElement.outerHTML")
 
-                                ' ExecuteScriptAsync returns a JSON string — unwrap it
                                 Dim html As String = ""
                                 If jsResult IsNot Nothing AndAlso jsResult <> "null" Then
                                     html = Newtonsoft.Json.JsonConvert.DeserializeObject(Of String)(jsResult)
                                 End If
 
+                                Debug.WriteLine($"[DLPS-WV] Extracted HTML length: {If(html IsNot Nothing, html.Length, 0)}")
                                 doCleanup()
                                 tcs.TrySetResult(If(html, ""))
                                 Return
                             End If
-                        Catch
+                        Catch ex As Exception
+                            Debug.WriteLine($"[DLPS-WV] Poll error: {ex.Message}")
+                            If pollCount >= 20 Then
+                                doCleanup()
+                                tcs.TrySetResult("")
+                                Return
+                            End If
                         End Try
 
-                        ' Not done yet — keep polling
                         If Not cleanedUp Then pollTimer.Start()
                     End Sub
 
                     AddHandler frm.Shown, Async Sub(s, e)
                         Try
-                            ' Initialize WebView2 with Edge/Chromium engine
+                            Debug.WriteLine("[DLPS-WV] Initializing WebView2...")
                             Await wv.EnsureCoreWebView2Async()
+                            Debug.WriteLine("[DLPS-WV] WebView2 initialized OK")
 
-                            ' Navigate and start polling
+                            AddHandler wv.NavigationCompleted, Sub(s2, e2)
+                                navigationDone = True
+                                Debug.WriteLine($"[DLPS-WV] Navigation completed: success={e2.IsSuccess}, status={e2.HttpStatusCode}")
+                            End Sub
+
                             wv.CoreWebView2.Navigate(url)
+                            Debug.WriteLine($"[DLPS-WV] Navigating to {url}")
                             pollTimer.Start()
 
                         Catch ex As Exception
+                            Debug.WriteLine($"[DLPS-WV] Init error: {ex.Message}")
                             doCleanup()
                             tcs.TrySetResult("")
                         End Try
@@ -664,21 +709,19 @@ Namespace Services.GameSearch
                     frm.Show()
 
                 Catch ex As Exception
+                    Debug.WriteLine($"[DLPS-WV] Form error: {ex.Message}")
                     tcs.TrySetResult("")
                 End Try
             End Sub
 
-            ' WebView2 must be created on the UI thread
+            ' WebView2 must run on the UI thread
             Dim mainForm As Form = Nothing
             For Each f As Form In Application.OpenForms
-                If f.IsHandleCreated Then
-                    mainForm = f
-                    Exit For
-                End If
+                If f.IsHandleCreated Then mainForm = f : Exit For
             Next
 
             If mainForm IsNot Nothing AndAlso mainForm.InvokeRequired Then
-                mainForm.Invoke(doWork)
+                mainForm.BeginInvoke(doWork)
             Else
                 doWork()
             End If
@@ -687,12 +730,12 @@ Namespace Services.GameSearch
         End Function
 
         ''' <summary>
-        ''' Fallback: uses WebView2 to navigate to the URL, bypass CF, then extract
+        ''' Uses WebView2 to navigate to the URL, bypass CF, then extract
         ''' game links directly from the DOM via JavaScript queries.
-        ''' More reliable than regex parsing when HTML structure is unknown.
         ''' </summary>
         Private Shared Async Function ExtractLinksViaJsAsync(url As String) As Task(Of List(Of GameSearchResult))
             Dim tcs As New TaskCompletionSource(Of List(Of GameSearchResult))()
+            Dim emptyResult As New List(Of GameSearchResult)
 
             Dim doWork As Action = Sub()
                 Try
@@ -717,21 +760,48 @@ Namespace Services.GameSearch
                     Dim pollTimer As New Timer() With {.Interval = 2500}
                     Dim pollCount As Integer = 0
                     Dim cfClearedAt As Integer = -1
+                    Dim navigationDone As Boolean = False
 
                     AddHandler pollTimer.Tick, Async Sub(s, e)
                         pollCount += 1
                         pollTimer.Stop()
 
                         Try
-                            Dim title = If(wv.CoreWebView2?.DocumentTitle, "")
-                            Dim cfDone = Not title.Contains("Just a moment") AndAlso pollCount > 1
+                            If wv.CoreWebView2 Is Nothing Then
+                                Debug.WriteLine($"[DLPS-JS] Poll #{pollCount}: CoreWebView2 is null")
+                                If pollCount >= 20 Then
+                                    doCleanup()
+                                    tcs.TrySetResult(emptyResult)
+                                    Return
+                                End If
+                                If Not cleanedUp Then pollTimer.Start()
+                                Return
+                            End If
 
-                            If cfDone AndAlso cfClearedAt < 0 Then cfClearedAt = pollCount
+                            Dim title = If(wv.CoreWebView2.DocumentTitle, "")
+                            Debug.WriteLine($"[DLPS-JS] Poll #{pollCount}: title='{title}' navDone={navigationDone}")
+
+                            Dim cfDone = navigationDone AndAlso
+                                         Not title.Contains("Just a moment") AndAlso
+                                         pollCount > 2
+
+                            If cfDone AndAlso cfClearedAt < 0 Then
+                                cfClearedAt = pollCount
+                                Debug.WriteLine($"[DLPS-JS] CF cleared at poll #{pollCount}")
+                            End If
+
                             Dim contentReady = (cfClearedAt > 0 AndAlso pollCount >= cfClearedAt + 2)
 
-                            If contentReady OrElse pollCount >= 15 Then
-                                ' Extract game links directly from DOM — broad query
-                                ' First try links inside content containers, then fallback to all links
+                            ' Timeout: max ~50 seconds (20 polls × 2.5s)
+                            If pollCount >= 20 AndAlso Not cfDone Then
+                                Debug.WriteLine("[DLPS-JS] Timeout — CF never cleared")
+                                doCleanup()
+                                tcs.TrySetResult(emptyResult)
+                                Return
+                            End If
+
+                            If contentReady OrElse (cfDone AndAlso pollCount >= 20) Then
+                                ' Extract game links from DOM
                                 Dim js = "(function(){" &
                                          "var skip=['/category/','/tag/','/author/','/page/','/wp-content/','/feed/','/wp-json/','/wp-login/','/wp-admin/','#','javascript:'];" &
                                          "var base='dlpsgame.com';" &
@@ -755,42 +825,57 @@ Namespace Services.GameSearch
                                          "})()"
 
                                 Dim jsResult = Await wv.CoreWebView2.ExecuteScriptAsync(js)
+                                Debug.WriteLine($"[DLPS-JS] JS result length: {If(jsResult IsNot Nothing, jsResult.Length, 0)}")
 
                                 Dim extracted As New List(Of GameSearchResult)
-                                If jsResult IsNot Nothing AndAlso jsResult <> "null" AndAlso jsResult <> "[]" Then
-                                    Dim items = Newtonsoft.Json.JsonConvert.DeserializeObject(Of List(Of JsLink))(jsResult)
-                                    Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
-                                    If items IsNot Nothing Then
-                                        For Each entry In items
-                                            If String.IsNullOrEmpty(entry.u) Then Continue For
-                                            If seen.Contains(entry.u) Then Continue For
-                                            seen.Add(entry.u)
+                                If jsResult IsNot Nothing AndAlso jsResult <> "null" AndAlso jsResult <> """""" AndAlso jsResult <> "[]" Then
+                                    ' ExecuteScriptAsync returns a JSON-encoded string — unwrap first
+                                    Dim jsonStr = Newtonsoft.Json.JsonConvert.DeserializeObject(Of String)(jsResult)
+                                    Debug.WriteLine($"[DLPS-JS] Unwrapped JSON length: {If(jsonStr IsNot Nothing, jsonStr.Length, 0)}")
 
-                                            Dim gameTitle = If(Not String.IsNullOrEmpty(entry.t) AndAlso entry.t.Length >= 3,
-                                                               entry.t,
-                                                               entry.u.TrimEnd("/"c).Split("/"c).Last().Replace("-", " "))
-                                            gameTitle = Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(gameTitle)
+                                    If Not String.IsNullOrEmpty(jsonStr) AndAlso jsonStr <> "[]" Then
+                                        Dim items = Newtonsoft.Json.JsonConvert.DeserializeObject(Of List(Of JsLink))(jsonStr)
+                                        Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                                        If items IsNot Nothing Then
+                                            Debug.WriteLine($"[DLPS-JS] Parsed {items.Count} link items")
+                                            For Each entry In items
+                                                If String.IsNullOrEmpty(entry.u) Then Continue For
+                                                If seen.Contains(entry.u) Then Continue For
+                                                seen.Add(entry.u)
 
-                                            Dim plat = ""
-                                            If gameTitle.ToUpper().Contains("PS5") OrElse entry.u.Contains("-ps5") Then plat = "PS5"
-                                            If gameTitle.ToUpper().Contains("PS4") OrElse entry.u.Contains("-ps4") Then plat = "PS4"
+                                                Dim gameTitle = If(Not String.IsNullOrEmpty(entry.t) AndAlso entry.t.Length >= 3,
+                                                                   entry.t,
+                                                                   entry.u.TrimEnd("/"c).Split("/"c).Last().Replace("-", " "))
+                                                gameTitle = Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(gameTitle)
 
-                                            extracted.Add(New GameSearchResult With {
-                                                .Title = gameTitle,
-                                                .DetailsUrl = entry.u,
-                                                .SourceProvider = "DLPSGame",
-                                                .Platform = plat,
-                                                .Category = "Game"
-                                            })
-                                        Next
+                                                Dim plat = ""
+                                                If gameTitle.ToUpper().Contains("PS5") OrElse entry.u.Contains("-ps5") Then plat = "PS5"
+                                                If gameTitle.ToUpper().Contains("PS4") OrElse entry.u.Contains("-ps4") Then plat = "PS4"
+
+                                                extracted.Add(New GameSearchResult With {
+                                                    .Title = gameTitle,
+                                                    .DetailsUrl = entry.u,
+                                                    .SourceProvider = "DLPSGame",
+                                                    .Platform = plat,
+                                                    .Category = "Game"
+                                                })
+                                            Next
+                                        End If
                                     End If
                                 End If
 
+                                Debug.WriteLine($"[DLPS-JS] Extracted {extracted.Count} game results")
                                 doCleanup()
                                 tcs.TrySetResult(extracted)
                                 Return
                             End If
-                        Catch
+                        Catch ex As Exception
+                            Debug.WriteLine($"[DLPS-JS] Poll error: {ex.Message}")
+                            If pollCount >= 20 Then
+                                doCleanup()
+                                tcs.TrySetResult(emptyResult)
+                                Return
+                            End If
                         End Try
 
                         If Not cleanedUp Then pollTimer.Start()
@@ -798,18 +883,30 @@ Namespace Services.GameSearch
 
                     AddHandler frm.Shown, Async Sub(s, e)
                         Try
+                            Debug.WriteLine("[DLPS-JS] Initializing WebView2...")
                             Await wv.EnsureCoreWebView2Async()
+                            Debug.WriteLine("[DLPS-JS] WebView2 initialized OK")
+
+                            AddHandler wv.NavigationCompleted, Sub(s2, e2)
+                                navigationDone = True
+                                Debug.WriteLine($"[DLPS-JS] Navigation completed: success={e2.IsSuccess}, status={e2.HttpStatusCode}")
+                            End Sub
+
                             wv.CoreWebView2.Navigate(url)
+                            Debug.WriteLine($"[DLPS-JS] Navigating to {url}")
                             pollTimer.Start()
-                        Catch
+
+                        Catch ex As Exception
+                            Debug.WriteLine($"[DLPS-JS] Init error: {ex.Message}")
                             doCleanup()
-                            tcs.TrySetResult(New List(Of GameSearchResult))
+                            tcs.TrySetResult(emptyResult)
                         End Try
                     End Sub
 
                     frm.Show()
-                Catch
-                    tcs.TrySetResult(New List(Of GameSearchResult))
+                Catch ex As Exception
+                    Debug.WriteLine($"[DLPS-JS] Form error: {ex.Message}")
+                    tcs.TrySetResult(emptyResult)
                 End Try
             End Sub
 
@@ -819,7 +916,7 @@ Namespace Services.GameSearch
             Next
 
             If mainForm IsNot Nothing AndAlso mainForm.InvokeRequired Then
-                mainForm.Invoke(doWork)
+                mainForm.BeginInvoke(doWork)
             Else
                 doWork()
             End If

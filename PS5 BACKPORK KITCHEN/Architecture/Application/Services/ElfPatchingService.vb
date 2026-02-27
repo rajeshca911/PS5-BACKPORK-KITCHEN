@@ -298,10 +298,25 @@ Namespace Architecture.Application.Services
                     _logger.LogInfo($"Decrypting SELF → {tempDecryptedPath}")
 
                     If Not selfutilmodule.unpackfile(filePath, tempDecryptedPath) Then
-                        ' Check if this file lives in sce_sys — Sony system files can't be decrypted
+                        ' Decrypt failed — try fakelib replacement first
+                        Dim fn = IO.Path.GetFileName(filePath)
+                        Dim fakelibOk = TryReplaceFakelib(filePath, fn, targetSdk, _logger)
+                        If fakelibOk Then
+                            Dim dur = DateTime.Now - startTime
+                            Dim fs2 = Await _fileSystem.GetFileSizeAsync(filePath)
+                            Return Result(Of PatchResult).Success(New PatchResult With {
+                                .FilePath = filePath,
+                                .OriginalSdk = 0,
+                                .PatchedSdk = targetSdk,
+                                .BytesWritten = fs2,
+                                .Duration = dur
+                            })
+                        End If
+                        ' Check if this file lives in sce_sys/sce_module — Sony system files can't be decrypted
                         Dim normalizedPath = filePath.Replace("\", "/").ToLowerInvariant()
-                        If normalizedPath.Contains("/sce_sys/") OrElse normalizedPath.Contains("/sce_module/") Then
-                            _logger.LogInfo($"System SELF in sce_sys/sce_module — skipped: {IO.Path.GetFileName(filePath)}")
+                        If normalizedPath.Contains("/sce_sys/") OrElse normalizedPath.Contains("/sce_module/") OrElse
+                           normalizedPath.Contains("/prx/") Then
+                            _logger.LogInfo($"Cannot decrypt — skipped: {fn}")
                             Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
                         End If
                         Return Result(Of PatchResult).Fail(New DecryptFailedError(filePath))
@@ -319,7 +334,24 @@ Namespace Architecture.Application.Services
                 Dim info = ElfInspector.ReadInfo(workingPath)
 
                 If info Is Nothing OrElse Not info.IsPatchable Then
-                    Return Result(Of PatchResult).Fail(New InvalidElfFormatError(filePath))
+                    ' File has no patchable SCE segments (vendor/third-party library).
+                    ' Try to replace with a fakelib from the target SDK folder.
+                    Dim fileName = IO.Path.GetFileName(filePath)
+                    Dim fakelibReplaced = TryReplaceFakelib(filePath, fileName, targetSdk, _logger)
+                    If fakelibReplaced Then
+                        Dim duration2 = DateTime.Now - startTime
+                        Dim fSize = Await _fileSystem.GetFileSizeAsync(filePath)
+                        Return Result(Of PatchResult).Success(New PatchResult With {
+                            .FilePath = filePath,
+                            .OriginalSdk = 0,
+                            .PatchedSdk = targetSdk,
+                            .BytesWritten = fSize,
+                            .Duration = duration2
+                        })
+                    End If
+                    ' No fakelib available — skip gracefully (not an error)
+                    _logger.LogInfo($"No patchable segments and no fakelib for: {fileName} — skipped")
+                    Return Result(Of PatchResult).Fail(New AlreadyPatchedError(filePath, targetSdk))
                 End If
 
                 Dim currentSdk = CLng(info.Ps5SdkVersion)
@@ -503,6 +535,62 @@ Namespace Architecture.Application.Services
             Return tempElfPath
 
         End Function
+        ''' <summary>
+        ''' Try to replace a non-patchable file with the corresponding fakelib
+        ''' from the target SDK folder. Searches for matching .prx/.sprx by name.
+        ''' </summary>
+        Private Shared Function TryReplaceFakelib(
+            originalPath As String,
+            fileName As String,
+            targetSdk As Long,
+            logger As ILogger
+        ) As Boolean
+            Try
+                ' Determine the SDK major version from the hex SDK value
+                ' e.g. 0x07000038 → 7, 0x06000000 → 6
+                Dim sdkMajor = CInt((targetSdk >> 24) And &HFF)
+                If sdkMajor < 1 OrElse sdkMajor > 11 Then Return False
+
+                Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+                Dim fakelibDir = IO.Path.Combine(baseDir, sdkMajor.ToString(), "fakelib")
+
+                If Not IO.Directory.Exists(fakelibDir) Then Return False
+
+                ' Search for matching filename (case-insensitive) in fakelib folder
+                Dim lowerName = fileName.ToLowerInvariant()
+                Dim baseName = IO.Path.GetFileNameWithoutExtension(lowerName)
+
+                ' Try exact name match first, then try .prx → .sprx and vice versa
+                Dim candidates = IO.Directory.GetFiles(fakelibDir, "*.*", IO.SearchOption.AllDirectories)
+                Dim match As String = Nothing
+
+                For Each candidate In candidates
+                    Dim candName = IO.Path.GetFileName(candidate).ToLowerInvariant()
+                    If candName = lowerName Then
+                        match = candidate
+                        Exit For
+                    End If
+                    ' Also try matching base name with different extension (.prx ↔ .sprx)
+                    Dim candBase = IO.Path.GetFileNameWithoutExtension(candName)
+                    If candBase = baseName Then
+                        match = candidate
+                        ' Keep searching for exact match
+                    End If
+                Next
+
+                If match IsNot Nothing Then
+                    IO.File.Copy(match, originalPath, True)
+                    logger.LogInfo($"Replaced with fakelib (SDK {sdkMajor}): {fileName}")
+                    Return True
+                End If
+
+            Catch ex As Exception
+                logger.LogWarning($"Fakelib replacement failed for {fileName}: {ex.Message}")
+            End Try
+
+            Return False
+        End Function
+
         Public Shared Function IsFileDecrypted(path As String) As Boolean
             Using fs As New FileStream(path, FileMode.Open, FileAccess.Read)
                 Dim magic(3) As Byte

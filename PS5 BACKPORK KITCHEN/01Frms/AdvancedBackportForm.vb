@@ -220,8 +220,8 @@ Public Class AdvancedBackportForm
 
         _cts = New CancellationTokenSource()
 
-        Dim scriptPath As String = ScriptPath("advanced_backport.py")
-        If scriptPath Is Nothing Then
+        Dim pyScript As String = ResolveScriptPath("advanced_backport.py")
+        If pyScript Is Nothing Then
             AppendLog("[ERROR] advanced_backport.py not found in scripts/ folder.", Color.Red)
             SetRunningState(False)
             Return
@@ -237,7 +237,7 @@ Public Class AdvancedBackportForm
         argsBuilder.Append("--no-color")
 
         Dim exitCode = Await PythonRunner.RunAsync(
-            scriptPath, argsBuilder.ToString(),
+            pyScript, argsBuilder.ToString(),
             onOutput:=Sub(line) SafeAppendLog(line),
             onError:=Sub(line) SafeAppendLog(line, Color.Orange),
             ct:=_cts.Token)
@@ -261,7 +261,7 @@ Public Class AdvancedBackportForm
     End Sub
 
     Private Sub BtnOpenScripts_Click(sender As Object, e As EventArgs) Handles btnOpenScripts.Click
-        Dim scriptsDir = ScriptsFolder()
+        Dim scriptsDir = FindScriptsFolder()
         If scriptsDir IsNot Nothing Then
             Process.Start("explorer.exe", scriptsDir)
         Else
@@ -279,8 +279,8 @@ Public Class AdvancedBackportForm
             Return
         End If
 
-        Dim scriptPath As String = ScriptPath("udp_log_server.py")
-        If scriptPath Is Nothing Then
+        Dim udpScript As String = ResolveScriptPath("udp_log_server.py")
+        If udpScript Is Nothing Then
             AppendLog("[ERROR] udp_log_server.py not found.", Color.Red)
             Return
         End If
@@ -290,7 +290,7 @@ Public Class AdvancedBackportForm
         AppendLog($"[UDP] Server starting on 0.0.0.0:9090 ...", Color.Cyan)
 
         _udpServerTask = PythonRunner.RunAsync(
-            scriptPath, "--port 9090",
+            udpScript, "--port 9090",
             onOutput:=Sub(line) SafeAppendLog(line, Color.DarkCyan),
             onError:=Sub(line) SafeAppendLog(line, Color.Orange),
             ct:=_udpServerCts.Token)
@@ -340,7 +340,7 @@ Public Class AdvancedBackportForm
         Return Color.White
     End Function
 
-    Private Shared Function ScriptsFolder() As String
+    Private Shared Function FindScriptsFolder() As String
         ' Walk up from the application base directory to find scripts/
         Dim dir = AppDomain.CurrentDomain.BaseDirectory
         For i = 0 To 8
@@ -353,8 +353,8 @@ Public Class AdvancedBackportForm
         Return Nothing
     End Function
 
-    Private Shared Function ScriptPath(scriptName As String) As String
-        Dim folder = ScriptsFolder()
+    Private Shared Function ResolveScriptPath(scriptName As String) As String
+        Dim folder = FindScriptsFolder()
         If folder Is Nothing Then Return Nothing
         Dim p = Path.Combine(folder, scriptName)
         Return If(File.Exists(p), p, Nothing)
