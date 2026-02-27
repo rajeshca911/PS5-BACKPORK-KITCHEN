@@ -12,10 +12,10 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>rajeshca911</Authors>
     <Description>Back ports ps5 homebrews</Description>
-    <AssemblyVersion>3.0.1.0</AssemblyVersion>
-    <FileVersion>3.0.1.0</FileVersion>
+    <AssemblyVersion>4.0.0.0</AssemblyVersion>
+    <FileVersion>4.0.0.0</FileVersion>
     <ApplicationIcon>backport.ico</ApplicationIcon>
-    <Version>3.0.1</Version>
+    <Version>4.0.0-beta</Version>
     <PackageProjectUrl>https://github.com/rajeshca911/PS5-BACKPORK-KITCHEN</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>backportIco.png</PackageIcon>

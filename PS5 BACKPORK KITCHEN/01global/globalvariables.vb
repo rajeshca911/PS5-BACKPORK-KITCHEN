@@ -45,7 +45,7 @@ Module globalvariables
     ' Application constants
     Public Const APP_NAME As String = "PS5 BackPork Kitchen"
 
-    Public Const APP_VERSION As String = "1.2.0"
+    Public Const APP_VERSION As String = "2.0.0-beta"
     Public Const LOG_FILENAME As String = "backpork_log.txt"
     Public Const MAX_LOG_FILE_SIZE As Long = 10 * 1024 * 1024 ' 10MB
 
