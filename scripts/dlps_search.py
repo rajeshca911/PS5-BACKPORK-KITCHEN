@@ -37,6 +37,9 @@ def _create_browser_options():
     co.set_argument("--window-size=1280,720")
     co.set_user_data_path(_USER_DATA_DIR)
     co.set_pref("credentials_enable_service", False)
+    # Use a fixed debug port so the browser stays running between calls.
+    # This reuses CF cookies from previous sessions automatically.
+    co.set_local_port(19222)
     return co
 
 
@@ -49,7 +52,7 @@ def _wait_for_cf(page, max_polls=30):
             "siamo" not in title.lower() and
             "verifica" not in title.lower() and
             i > 0):
-            page.wait(3)
+            page.wait(1)
             return True
     return False
 
@@ -70,7 +73,9 @@ HOST_DOMAINS = [
     "buzzheavier.com", "datanodes.to", "filecrypt.cc",
     "pixeldrain.com", "cyberfile.is", "uploadhaven.com",
     "fikper.com", "rapidgator.net", "nitroflare.com",
-    "turbobit.net", "katfile.com", "ddownload.com"
+    "turbobit.net", "katfile.com", "ddownload.com",
+    "downloadgameps3.net", "transfer.it", "mega.nz",
+    "krakenfiles.com", "qiwi.gg",
 ]
 
 
@@ -82,7 +87,9 @@ def get_host_name(domain):
         "vikingfile.com": "Vikingfile", "rootz.so": "Rootz",
         "1cloudfile.com": "1CloudFile", "buzzheavier.com": "Buzzheavier",
         "datanodes.to": "Datanodes", "filecrypt.cc": "Filecrypt",
-        "pixeldrain.com": "Pixeldrain",
+        "pixeldrain.com": "Pixeldrain", "downloadgameps3.net": "DLPS Mirror",
+        "transfer.it": "Transfer.it", "mega.nz": "MEGA",
+        "krakenfiles.com": "KrakenFiles", "qiwi.gg": "Qiwi",
     }
     return names.get(d, domain)
 
@@ -114,19 +121,29 @@ def detect_platform(title, url):
     return ""
 
 
-def decode_clksh_url(clksh_url):
-    """Decode a clk.sh redirect URL to get the real hosting URL.
+# URL shortener domains used by DLPSGame for wrapping download links
+SHORTENER_DOMAINS = ["clk.sh", "shrinkearn.com", "ouo.io", "exe.io", "fc.lc"]
 
-    DLPSGame wraps download links via clk.sh with base64-encoded target URLs:
+
+def decode_shortener_url(shortener_url):
+    """Decode a shortener redirect URL to get the real hosting URL.
+
+    DLPSGame wraps download links via shorteners with base64-encoded target URLs:
     https://clk.sh/full?api=...&url=BASE64_ENCODED_URL&type=2
+    https://shrinkearn.com/full?api=...&url=BASE64_ENCODED_URL&type=2
     """
     # Handle HTML entity encoding (&amp; → &)
-    clean = clksh_url.replace("&amp;", "&")
+    clean = shortener_url.replace("&amp;", "&")
     m = re.search(r'[?&]url=([A-Za-z0-9+/=]+)', clean)
     if m:
         try:
             import base64
-            decoded = base64.b64decode(m.group(1)).decode("utf-8", errors="replace")
+            b64 = m.group(1)
+            # Add padding if missing (DLPSGame often omits trailing '=')
+            pad = len(b64) % 4
+            if pad:
+                b64 += "=" * (4 - pad)
+            decoded = base64.b64decode(b64).decode("utf-8", errors="replace")
             if decoded.startswith("http"):
                 return decoded
         except Exception:
@@ -134,32 +151,45 @@ def decode_clksh_url(clksh_url):
     return None
 
 
-def extract_download_links_from_page(page):
-    """Extract hosting service links from a rendered page using DrissionPage API.
+def _is_shortener(url):
+    """Check if a URL is from a known shortener domain."""
+    for domain in SHORTENER_DOMAINS:
+        if domain in url:
+            return True
+    return False
 
-    Uses the element API to get actual href values (with HTML entities resolved),
-    then decodes clk.sh base64 wrappers to get real hosting URLs.
-    Also works with direct hosting links (older page format).
+
+def extract_download_links_from_page(page):
+    """Extract hosting service links from a rendered page using JavaScript.
+
+    Runs JS in the browser to collect all <a> href values and link text,
+    then decodes shortener (clk.sh, shrinkearn.com, etc.) base64 wrappers
+    to get real hosting URLs.
     """
     links = []
     seen = set()
 
+    # Use JavaScript to reliably get all link hrefs and text
     try:
-        elements = page.eles("tag:a")
+        js_links = page.run_js(
+            "return Array.from(document.querySelectorAll('a[href]')).map("
+            "a => ({href: a.href, text: (a.textContent || '').trim().slice(0, 30)}))"
+        )
     except Exception:
-        elements = []
+        js_links = []
 
-    for el in elements:
-        try:
-            href = el.attr("href") or ""
-        except Exception:
-            continue
+    if not js_links:
+        return links
+
+    for item in js_links:
+        href = item.get("href", "")
+        text = item.get("text", "")
 
         real_url = None
 
-        # clk.sh wrapped link — decode base64 target
-        if "clk.sh" in href:
-            real_url = decode_clksh_url(href)
+        # Shortener wrapped link — decode base64 target
+        if _is_shortener(href):
+            real_url = decode_shortener_url(href)
         elif href.startswith("http"):
             real_url = href
 
@@ -169,12 +199,6 @@ def extract_download_links_from_page(page):
         for domain in HOST_DOMAINS:
             if domain in real_url.lower() and real_url not in seen:
                 seen.add(real_url)
-                # Use link text as display name if available, else derive from domain
-                text = ""
-                try:
-                    text = (el.text or "").strip()
-                except Exception:
-                    pass
                 host_name = text if text and len(text) < 30 else get_host_name(domain)
                 links.append({"host": host_name, "url": real_url})
                 break
@@ -185,16 +209,22 @@ def extract_download_links_from_page(page):
 def extract_download_links(html):
     """Extract hosting service links from raw HTML string.
 
-    Handles both clk.sh redirect wrappers (with &amp; entities)
-    and direct hosting URLs.
+    Handles shortener redirect wrappers (clk.sh, shrinkearn.com, etc.
+    with &amp; entities) and direct hosting URLs.
     """
     links = []
     seen = set()
 
-    # Handle clk.sh links (with &amp; HTML entities)
-    for m in re.finditer(r'href=["\']?(https?://clk\.sh/[^"\'>\s]+)', html, re.I):
+    # Build regex pattern for all shortener domains
+    shortener_pattern = "|".join(re.escape(d) for d in SHORTENER_DOMAINS)
+
+    # Handle shortener links (with &amp; HTML entities)
+    for m in re.finditer(
+        r'href=["\']?(https?://(?:' + shortener_pattern + r')/[^"\'>\s]+)',
+        html, re.I
+    ):
         raw = m.group(1)
-        real_url = decode_clksh_url(raw)
+        real_url = decode_shortener_url(raw)
         if not real_url:
             continue
         for domain in HOST_DOMAINS:
@@ -206,7 +236,7 @@ def extract_download_links(html):
     # Direct hosting links
     for m in re.finditer(r'<a\s+[^>]*href="(https?://[^"]+)"[^>]*>', html, re.I):
         url = m.group(1)
-        if "clk.sh" in url:
+        if _is_shortener(url):
             continue
         for domain in HOST_DOMAINS:
             if domain in url.lower() and url not in seen:
@@ -308,11 +338,7 @@ def search_listings(query, max_results=20):
     except Exception as e:
         return {"error": str(e), "results": []}
     finally:
-        if page:
-            try:
-                page.quit()
-            except Exception:
-                pass
+        pass  # Keep browser running for CF cookie persistence
 
 
 def fetch_game_page(url):
@@ -353,8 +379,17 @@ def fetch_game_page(url):
         pw_match = re.search(r"Password\s*:\s*([^\r\n<]+)", html, re.I)
         password = pw_match.group(1).strip() if pw_match else ""
 
-        # Download links — use page element API to resolve clk.sh wrappers
+        # Download links — use JS to resolve clk.sh wrappers
+        page.wait(2)
         all_links = extract_download_links_from_page(page)
+        if not all_links:
+            all_links = extract_download_links(html)
+        if not all_links:
+            page.wait(3)
+            all_links = extract_download_links_from_page(page)
+            if not all_links:
+                html = page.html
+                all_links = extract_download_links(html)
         sections = parse_download_sections(html, all_links)
 
         return {
@@ -370,11 +405,7 @@ def fetch_game_page(url):
     except Exception as e:
         return {"error": str(e)}
     finally:
-        if page:
-            try:
-                page.quit()
-            except Exception:
-                pass
+        pass  # Keep browser running for CF cookie persistence
 
 
 def full_search(query, max_results=20, fetch_details=5):
@@ -441,16 +472,26 @@ def full_search(query, max_results=20, fetch_details=5):
             listing = listings[i]
             try:
                 page.get(listing["url"])
+                page.wait(3)
 
                 # CF should already be cleared (cookies persist in session)
-                # But check title just in case
                 for j in range(10):
-                    page.wait(1.5)
                     title = str(page.title or "")
                     if ("Just a moment" not in title and
-                        "siamo" not in title.lower() and
-                        j > 0):
-                        page.wait(2)
+                        "siamo" not in title.lower()):
+                        break
+                    page.wait(2)
+
+                # Wait for dynamic content to render, then extract links.
+                # The shortener links are injected by JS after DOM load.
+                # Poll until links appear or we reach max attempts.
+                all_links = []
+                for attempt in range(5):
+                    page.wait(2)
+                    all_links = extract_download_links_from_page(page)
+                    if not all_links:
+                        all_links = extract_download_links(page.html)
+                    if all_links:
                         break
 
                 detail_html = page.html
@@ -477,8 +518,7 @@ def full_search(query, max_results=20, fetch_details=5):
                 pw_match = re.search(r"Password\s*:\s*([^\r\n<]+)", detail_html, re.I)
                 password = pw_match.group(1).strip() if pw_match else ""
 
-                # Extract download links from rendered page
-                all_links = extract_download_links_from_page(page)
+                # all_links already extracted during page load polling above
                 sections = parse_download_sections(detail_html, all_links)
 
                 result = {
@@ -521,11 +561,7 @@ def full_search(query, max_results=20, fetch_details=5):
     except Exception as e:
         return {"error": str(e), "results": []}
     finally:
-        if page:
-            try:
-                page.quit()
-            except Exception:
-                pass
+        pass  # Keep browser running for CF cookie persistence
 
 
 def main():
