@@ -140,42 +140,37 @@ Namespace Services.GameSearch
                     cfBlocked = True
                 End Try
 
-                ' -------- Step 2: Cloudflare detected → use WebView2 JS extraction --------
-                ' WebView2 (Chromium) loads the page, solves the CF challenge, then we
-                ' extract game links directly from the DOM via JavaScript — more reliable
-                ' than regex on serialized HTML.
+                ' -------- Step 2: parse HTML if HTTP succeeded --------
                 Dim listingResults As New List(Of GameSearchResult)
 
-                If cfBlocked Then
+                If Not cfBlocked AndAlso Not String.IsNullOrEmpty(html) AndAlso html.Length >= 500 Then
+                    listingResults = ParseListingPage(html)
+                    Debug.WriteLine($"[DLPS] ParseListingPage returned {listingResults.Count} results")
+                End If
+
+                ' -------- Step 3: CF blocked → use Python DrissionPage bypass --------
+                ' DrissionPage uses a real browser engine with anti-detection to solve
+                ' Cloudflare Turnstile challenges that WebView2 cannot handle.
+                If listingResults.Count = 0 AndAlso cfBlocked Then
                     _status.LastError = "Cloudflare — trying browser bypass..."
-                    Debug.WriteLine("[DLPS] CF blocked — launching WebView2 bypass...")
+                    Debug.WriteLine("[DLPS] CF blocked — launching Python browser bypass...")
+                    Try
+                        listingResults = Await RunPythonSearchAsync(searchTerm, query.MaxResults, cancellationToken)
+                        Debug.WriteLine($"[DLPS] Python search returned {listingResults.Count} results")
+                    Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
+                        Debug.WriteLine($"[DLPS] Python search error: {ex.Message}")
+                    End Try
+                End If
+
+                ' -------- Step 3b: fallback to WebView2 if Python not available --------
+                If listingResults.Count = 0 AndAlso cfBlocked Then
+                    Debug.WriteLine("[DLPS] Python returned 0 — trying WebView2 fallback...")
                     Try
                         listingResults = Await ExtractLinksViaJsAsync(searchUrl)
-                        Debug.WriteLine($"[DLPS] WebView2 JS extraction returned {listingResults.Count} results")
+                        Debug.WriteLine($"[DLPS] WebView2 returned {listingResults.Count} results")
                     Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
                         Debug.WriteLine($"[DLPS] WebView2 error: {ex.Message}")
                     End Try
-                End If
-
-                ' -------- Step 2b: If JS extraction failed, try fetching full HTML via browser --------
-                If listingResults.Count = 0 AndAlso cfBlocked Then
-                    Debug.WriteLine("[DLPS] JS extraction returned 0 — trying full HTML browser fetch...")
-                    Try
-                        html = Await FetchWithWebBrowserAsync(searchUrl)
-                        Debug.WriteLine($"[DLPS] Browser HTML length: {If(html IsNot Nothing, html.Length, 0)}")
-                        If Not String.IsNullOrEmpty(html) AndAlso html.Length > 500 Then
-                            cfBlocked = html.Contains("Just a moment") OrElse html.Contains("_cf_chl")
-                            Debug.WriteLine($"[DLPS] Browser CF still blocked: {cfBlocked}")
-                        End If
-                    Catch ex As Exception When Not TypeOf ex Is OperationCanceledException
-                        Debug.WriteLine($"[DLPS] Browser fetch error: {ex.Message}")
-                    End Try
-                End If
-
-                ' -------- Step 3: parse HTML (direct HTTP or fallback) --------
-                If listingResults.Count = 0 AndAlso Not String.IsNullOrEmpty(html) AndAlso html.Length >= 500 Then
-                    listingResults = ParseListingPage(html)
-                    Debug.WriteLine($"[DLPS] ParseListingPage returned {listingResults.Count} results")
                 End If
 
                 If listingResults.Count = 0 Then
@@ -922,6 +917,121 @@ Namespace Services.GameSearch
             End If
 
             Return Await tcs.Task
+        End Function
+
+        ''' <summary>
+        ''' Runs the Python dlps_search.py script which uses DrissionPage (anti-detection
+        ''' browser automation) to bypass Cloudflare Turnstile and scrape search results.
+        ''' Returns parsed game listings from JSON output.
+        ''' </summary>
+        Private Shared Async Function RunPythonSearchAsync(
+            searchTerm As String,
+            maxResults As Integer,
+            ct As Threading.CancellationToken
+        ) As Task(Of List(Of GameSearchResult))
+
+            Dim results As New List(Of GameSearchResult)
+
+            ' Find the Python script
+            Dim scriptPath = FindScriptPath("dlps_search.py")
+            If scriptPath Is Nothing Then
+                Debug.WriteLine("[DLPS-PY] dlps_search.py not found in scripts/ folder")
+                Return results
+            End If
+
+            ' Find Python interpreter
+            Dim pythonPath = PythonRunner.FindPython()
+            If String.IsNullOrEmpty(pythonPath) Then
+                Debug.WriteLine("[DLPS-PY] Python not found")
+                Return results
+            End If
+
+            ' Build args
+            Dim escapedQuery = searchTerm.Replace("""", "\""")
+            Dim arguments = $"""{scriptPath}"" --query ""{escapedQuery}"" --max {maxResults}"
+
+            Debug.WriteLine($"[DLPS-PY] Running: {pythonPath} {arguments}")
+
+            ' Capture all stdout into a single string
+            Dim outputBuilder As New Text.StringBuilder()
+            Dim errorBuilder As New Text.StringBuilder()
+
+            Try
+                Dim exitCode = Await PythonRunner.RunAsync(
+                    scriptPath, $"--query ""{escapedQuery}"" --max {maxResults}",
+                    onOutput:=Sub(line) outputBuilder.AppendLine(line),
+                    onError:=Sub(line)
+                                errorBuilder.AppendLine(line)
+                                Debug.WriteLine($"[DLPS-PY] stderr: {line}")
+                            End Sub,
+                    ct:=ct)
+
+                Debug.WriteLine($"[DLPS-PY] Exit code: {exitCode}, output length: {outputBuilder.Length}")
+
+                If exitCode <> 0 Then
+                    Debug.WriteLine($"[DLPS-PY] Script failed: {errorBuilder}")
+                    Return results
+                End If
+
+                ' Parse JSON output
+                Dim jsonOutput = outputBuilder.ToString().Trim()
+                If String.IsNullOrEmpty(jsonOutput) Then Return results
+
+                ' Find the JSON object (skip any non-JSON lines from stderr/warnings)
+                Dim jsonStart = jsonOutput.IndexOf("{"c)
+                If jsonStart < 0 Then Return results
+                jsonOutput = jsonOutput.Substring(jsonStart)
+
+                Dim parsed = Newtonsoft.Json.Linq.JObject.Parse(jsonOutput)
+
+                ' Check for error
+                Dim errToken = parsed("error")
+                If errToken IsNot Nothing AndAlso errToken.Type <> Newtonsoft.Json.Linq.JTokenType.Null Then
+                    Debug.WriteLine($"[DLPS-PY] Script error: {CStr(errToken)}")
+                End If
+
+                ' Parse results array
+                Dim items = parsed("results")
+                If items Is Nothing Then Return results
+
+                For Each item As Newtonsoft.Json.Linq.JObject In items
+                    Dim title = CStr(If(item("title"), ""))
+                    Dim url = CStr(If(item("url"), ""))
+                    If String.IsNullOrEmpty(title) OrElse String.IsNullOrEmpty(url) Then Continue For
+
+                    results.Add(New GameSearchResult With {
+                        .Title = title,
+                        .DetailsUrl = url,
+                        .SourceProvider = "DLPSGame",
+                        .Platform = CStr(If(item("platform"), "")),
+                        .Category = CStr(If(item("category"), "Game"))
+                    })
+                Next
+
+                Debug.WriteLine($"[DLPS-PY] Parsed {results.Count} results from JSON")
+
+            Catch ex As OperationCanceledException
+                Throw
+            Catch ex As Exception
+                Debug.WriteLine($"[DLPS-PY] Error: {ex.Message}")
+            End Try
+
+            Return results
+        End Function
+
+        ''' <summary>
+        ''' Finds a script file in the scripts/ folder relative to the application.
+        ''' </summary>
+        Private Shared Function FindScriptPath(scriptName As String) As String
+            Dim dir = AppDomain.CurrentDomain.BaseDirectory
+            For i = 0 To 8
+                Dim candidate = IO.Path.Combine(dir, "scripts", scriptName)
+                If IO.File.Exists(candidate) Then Return IO.Path.GetFullPath(candidate)
+                Dim parent = IO.Directory.GetParent(dir)
+                If parent Is Nothing Then Exit For
+                dir = parent.FullName
+            Next
+            Return Nothing
         End Function
 
         Private Class JsLink
