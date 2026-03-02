@@ -215,7 +215,7 @@ Public Class AdvancedBackportForm
         End If
 
         SetRunningState(True)
-        AppendLog($"[ABP] Starting pipeline: {cmbFwCurrent.Text} → {cmbFwTarget.Text}", Color.Cyan)
+        AppendLog($"[ABP] Starting pipeline: {cmbFwCurrent.Text} -> {cmbFwTarget.Text}", Color.Cyan)
         AppendLog($"[ABP] Game folder: {txtGameFolder.Text}", Color.Gray)
 
         _cts = New CancellationTokenSource()
@@ -236,24 +236,39 @@ Public Class AdvancedBackportForm
         If chkResign.Checked Then argsBuilder.Append("--resign ")
         argsBuilder.Append("--no-color")
 
-        Dim exitCode = Await PythonRunner.RunAsync(
-            pyScript, argsBuilder.ToString(),
-            onOutput:=Sub(line) SafeAppendLog(line),
-            onError:=Sub(line) SafeAppendLog(line, Color.Orange),
-            ct:=_cts.Token)
+        Try
+            Dim exitCode = Await PythonRunner.RunAsync(
+                pyScript, argsBuilder.ToString(),
+                onOutput:=Sub(line) SafeAppendLog(line),
+                onError:=Sub(line) SafeAppendLog(line, Color.Orange),
+                ct:=_cts.Token)
 
-        If exitCode = 0 Then
-            AppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
-        Else
-            AppendLog($"[ABP] Pipeline exited with code {exitCode}.", Color.Red)
-        End If
-
-        SetRunningState(False)
+            If exitCode = 0 Then
+                AppendLog("[ABP] Pipeline completed successfully.", Color.Lime)
+            ElseIf _cts.IsCancellationRequested Then
+                AppendLog("[ABP] Pipeline cancelled by user.", Color.Yellow)
+            Else
+                AppendLog($"[ABP] Pipeline exited with code {exitCode}.", Color.Red)
+            End If
+        Catch ex As OperationCanceledException
+            AppendLog("[ABP] Pipeline cancelled.", Color.Yellow)
+        Catch ex As Exception
+            AppendLog($"[ERROR] Unexpected error: {ex.Message}", Color.Red)
+        Finally
+            SetRunningState(False)
+        End Try
     End Sub
 
     Private Sub BtnStop_Click(sender As Object, e As EventArgs) Handles btnStop.Click
         _cts?.Cancel()
         AppendLog("[ABP] Stop requested.", Color.Yellow)
+    End Sub
+
+    Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
+        ' Cancel any in-flight pipeline and UDP server to avoid orphaned processes.
+        _cts?.Cancel()
+        _udpServerCts?.Cancel()
+        MyBase.OnFormClosing(e)
     End Sub
 
     Private Sub BtnClear_Click(sender As Object, e As EventArgs) Handles btnClear.Click
@@ -321,11 +336,18 @@ Public Class AdvancedBackportForm
 
     Private Sub SafeAppendLog(text As String, Optional color As Color = Nothing)
         If color = Nothing Then color = ColorFromText(text)
-        If rtbLog.InvokeRequired Then
-            rtbLog.Invoke(Sub() AppendLog(text, color))
-        Else
-            AppendLog(text, color)
-        End If
+        Try
+            If rtbLog.IsDisposed OrElse Not rtbLog.IsHandleCreated Then Return
+            If rtbLog.InvokeRequired Then
+                rtbLog.Invoke(Sub() AppendLog(text, color))
+            Else
+                AppendLog(text, color)
+            End If
+        Catch ex As ObjectDisposedException
+            ' Form or control was disposed while the pipeline was still running — ignore.
+        Catch ex As InvalidOperationException
+            ' Invoke on a control with no handle — ignore.
+        End Try
     End Sub
 
     Private Shared Function ColorFromText(text As String) As Color
