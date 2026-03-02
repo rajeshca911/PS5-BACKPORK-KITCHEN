@@ -30,6 +30,15 @@ import sys
 import time
 from pathlib import Path
 
+# Minimum Python version required for type annotation syntax used in dependencies.
+if sys.version_info < (3, 9):
+    print(
+        "[ERROR] Python 3.9 or newer is required "
+        "(found {}.{}).".format(sys.version_info.major, sys.version_info.minor),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 
 # ---------------------------------------------------------------------------
 # Lazy imports (allow running --help without all deps installed)
@@ -210,8 +219,8 @@ class BackportPipeline:
         _header("Step 1: ELF Analysis")
         try:
             ELFAnalyzer, ELFAnalyzerError = _import_elf()
-        except ImportError:
-            _log("[WARN] pyelftools not installed -- skipping analysis", YELLOW)
+        except Exception as exc:
+            _log("[WARN] ELF analyzer unavailable -- skipping analysis ({})".format(exc), YELLOW)
             return
 
         encrypted_count = 0
@@ -251,8 +260,8 @@ class BackportPipeline:
         _header("Step 2: BPS Patch Application")
         try:
             PatchDatabase, BPSError = _import_bps()
-        except ImportError:
-            _log("[WARN] bps_engine not available -- skipping BPS step", YELLOW)
+        except Exception as exc:
+            _log("[WARN] BPS engine unavailable -- skipping BPS step ({})".format(exc), YELLOW)
             return
 
         db = PatchDatabase(self.args.db)
@@ -286,8 +295,8 @@ class BackportPipeline:
         _header("Step 3: Auto-Stubbing")
         try:
             AutoStubber, AutoStubberError = _import_stubber()
-        except ImportError:
-            _log("[WARN] capstone/keystone not installed -- skipping stub step", YELLOW)
+        except Exception as exc:
+            _log("[WARN] Auto-stubber unavailable -- skipping stub step ({})".format(exc), YELLOW)
             return
 
         for fpath in files:
@@ -405,11 +414,19 @@ class BackportPipeline:
                 for f in files
             ]
 
-        self.step_analysis(files)
-        self.step_bps(files)
-        self.step_stub(files)
-        self.step_sdk_patch(files)
-        self.step_resign(files)
+        for step_fn in (
+            self.step_analysis,
+            self.step_bps,
+            self.step_stub,
+            self.step_sdk_patch,
+            self.step_resign,
+        ):
+            try:
+                step_fn(files)
+            except Exception as exc:
+                err_msg = "[ERR] Step '{}' failed: {}".format(step_fn.__name__, exc)
+                _log(err_msg, RED)
+                self.results["errors"].append(err_msg)
 
         self.results["total_time_s"] = round(time.time() - t0, 2)
         return self.results
