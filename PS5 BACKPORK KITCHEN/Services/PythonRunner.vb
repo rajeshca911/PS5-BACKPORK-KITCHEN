@@ -1,10 +1,12 @@
 Imports System.Diagnostics
 Imports System.IO
+Imports System.Text.RegularExpressions
 Imports System.Threading
 
 ''' <summary>
 ''' Launches Python scripts and streams their output line-by-line.
 ''' Searches for a Python interpreter in: PATH, venv, bundled python/ folder.
+''' Requires Python 3.9 or newer.
 ''' </summary>
 Public Class PythonRunner
 
@@ -13,7 +15,7 @@ Public Class PythonRunner
     ' ---------------------------------------------------------------------------
 
     ''' <summary>
-    ''' Returns the path to a usable python executable, or Nothing if not found.
+    ''' Returns the path to a usable Python 3.9+ executable, or Nothing if none found.
     ''' Search order: bundled python/ sub-folder, virtual-env .venv, PATH.
     ''' </summary>
     Public Shared Function FindPython() As String
@@ -21,31 +23,49 @@ Public Class PythonRunner
 
         ' 1. Bundled python (shipped alongside the app)
         Dim bundled As String = Path.Combine(appDir, "python", "python.exe")
-        If File.Exists(bundled) Then Return bundled
+        If File.Exists(bundled) AndAlso IsPython39OrNewer(bundled) Then Return bundled
 
         ' 2. Virtual environment created next to the app
         Dim venv As String = Path.Combine(appDir, ".venv", "Scripts", "python.exe")
-        If File.Exists(venv) Then Return venv
+        If File.Exists(venv) AndAlso IsPython39OrNewer(venv) Then Return venv
 
         ' 3. System PATH
         For Each candidate In {"python", "python3", "py"}
             Try
-                Dim info As New ProcessStartInfo(candidate, "--version") With {
-                    .UseShellExecute = False,
-                    .RedirectStandardOutput = True,
-                    .RedirectStandardError = True,
-                    .CreateNoWindow = True
-                }
-                Using proc = Process.Start(info)
-                    proc.WaitForExit(3000)
-                    If proc.ExitCode = 0 Then Return candidate
-                End Using
+                If IsPython39OrNewer(candidate) Then Return candidate
             Catch
                 ' Not found in PATH — try next
             End Try
         Next
 
         Return Nothing
+    End Function
+
+    ''' <summary>
+    ''' Returns True when the given executable is Python 3.9 or newer.
+    ''' </summary>
+    Private Shared Function IsPython39OrNewer(executable As String) As Boolean
+        Try
+            Dim info As New ProcessStartInfo(executable, "--version") With {
+                .UseShellExecute = False,
+                .RedirectStandardOutput = True,
+                .RedirectStandardError = True,
+                .CreateNoWindow = True
+            }
+            Using proc = Process.Start(info)
+                ' python --version prints to stdout on 3.4+ and to stderr on older builds.
+                Dim output = proc.StandardOutput.ReadToEnd() & proc.StandardError.ReadToEnd()
+                proc.WaitForExit(4000)
+                If proc.ExitCode <> 0 Then Return False
+                Dim m = Regex.Match(output, "Python (\d+)\.(\d+)")
+                If Not m.Success Then Return False
+                Dim major = Integer.Parse(m.Groups(1).Value)
+                Dim minor = Integer.Parse(m.Groups(2).Value)
+                Return major > 3 OrElse (major = 3 AndAlso minor >= 9)
+            End Using
+        Catch
+            Return False
+        End Try
     End Function
 
     ' ---------------------------------------------------------------------------
@@ -71,7 +91,7 @@ Public Class PythonRunner
 
         Dim python = FindPython()
         If python Is Nothing Then
-            onError?.Invoke("[ERROR] Python interpreter not found. Install Python 3.9+ or place python.exe in the 'python' sub-folder.")
+            onError?.Invoke("[ERROR] Python 3.9+ interpreter not found. Install Python 3.9+ or place python.exe in the 'python' sub-folder.")
             Return -1
         End If
 
@@ -82,7 +102,8 @@ Public Class PythonRunner
 
         Dim workDir = Path.GetDirectoryName(scriptPath)
 
-        Dim psi As New ProcessStartInfo(python, $"""{scriptPath}"" {args}") With {
+        ' -u: force unbuffered stdout/stderr so output streams in real-time.
+        Dim psi As New ProcessStartInfo(python, $"-u ""{scriptPath}"" {args}") With {
             .WorkingDirectory = workDir,
             .UseShellExecute = False,
             .RedirectStandardOutput = True,
@@ -91,6 +112,9 @@ Public Class PythonRunner
             .StandardOutputEncoding = Text.Encoding.UTF8,
             .StandardErrorEncoding = Text.Encoding.UTF8
         }
+        ' Belt-and-suspenders: env var also disables Python's internal buffering.
+        psi.EnvironmentVariables("PYTHONUNBUFFERED") = "1"
+        psi.EnvironmentVariables("PYTHONIOENCODING") = "utf-8"
 
         Using proc As New Process() With {.StartInfo = psi, .EnableRaisingEvents = True}
             proc.Start()
