@@ -95,6 +95,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Bundle Python scripts so the app finds them at runtime next to the exe -->
+    <Content Include="..\scripts\*.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>scripts\%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Bundle ps5-pup-unpacker tool with ALL required dependencies -->
     <None Include="tools\pup_unpacker.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
