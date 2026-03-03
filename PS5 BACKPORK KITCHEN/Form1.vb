@@ -871,6 +871,13 @@ Public Class Form1
             .FlatStyle = FlatStyle.Flat
             .Cursor = Cursors.Hand
         End With
+        With btnAdvancedBackport
+            .Text = "⚙️ Adv Backport"
+            .Font = New Font("Segoe UI", 9, FontStyle.Bold)
+            .BackColor = Color.FromArgb(200, 160, 255)
+            .FlatStyle = FlatStyle.Flat
+            .Cursor = Cursors.Hand
+        End With
     End Sub
 
     ''' <summary>
@@ -1466,6 +1473,11 @@ Public Class Form1
     Private Sub showadvancedoperations()
         Try
             Using frm As New OperationModeForm()
+                ' Pass current game context so the form shows cover art + game name
+                Dim folder = Txtpath.Text
+                If Not String.IsNullOrEmpty(folder) AndAlso Directory.Exists(folder) Then
+                    frm.SetGameContext(folder, gamename)
+                End If
                 frm.ShowDialog()
             End Using
         Catch ex As Exception
@@ -2138,6 +2150,10 @@ Public Class Form1
         OpenPackageManager()
     End Sub
 
+    Private Sub btnAdvancedBackport_Click(sender As Object, e As EventArgs) Handles btnAdvancedBackport.Click
+        OpenAdvancedBackport()
+    End Sub
+
     ''' <summary>
     ''' Open UFS2 Image Converter window
     ''' </summary>
@@ -2166,5 +2182,18 @@ Public Class Form1
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Open Advanced Backport pipeline window
+    ''' </summary>
+    Private Sub OpenAdvancedBackport()
+        Try
+            Using frm As New AdvancedBackportForm()
+                frm.ShowDialog()
+            End Using
+        Catch ex As Exception
+            MessageBox.Show($"Error opening Advanced Backport: {ex.Message}",
+                          "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
 
 End Class

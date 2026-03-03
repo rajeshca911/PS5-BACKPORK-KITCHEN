@@ -194,6 +194,10 @@ Public Class SelfFile
         ' 4. Allocate output buffer (C++: save.resize)
         ' -------------------------------------------------------
 
+        If saveSize = 0 OrElse saveSize > 512 * 1024 * 1024 Then ' sanity cap 512 MB
+            Throw New Exception($"Unreasonable ELF output size: 0x{saveSize:X}")
+        End If
+
         Dim outputSize As Integer = CInt(saveSize)
         Dim output(outputSize - 1) As Byte
         ' VB arrays are zeroed automatically (equivalent to memset)
@@ -201,6 +205,15 @@ Public Class SelfFile
         ' -------------------------------------------------------
         ' 5. Copy ELF header region (C++: memcpy(pd, eHead, first))
         ' -------------------------------------------------------
+
+        If CInt(firstOffset) > 0 Then
+            If _ElfHeaderOffset + CInt(firstOffset) > _data.Length Then
+                Throw New Exception($"ELF header region exceeds file bounds (0x{_ElfHeaderOffset:X} + 0x{firstOffset:X} > 0x{_data.Length:X})")
+            End If
+            If CInt(firstOffset) > output.Length Then
+                Throw New Exception($"ELF header region exceeds output buffer (0x{firstOffset:X} > 0x{output.Length:X})")
+            End If
+        End If
 
         Array.Copy(_data, _ElfHeaderOffset, output, 0, CInt(firstOffset))
         Logger.LogToFile($"[ExtractElf] Header region copied: 0x{firstOffset:X} bytes", LogLevel.Info)
@@ -262,6 +275,16 @@ Public Class SelfFile
 
                 Dim dstOffset As Integer =
                 CInt(ph.p_offset)
+
+                ' Bounds check before copy to prevent crash on non-standard SELF files
+                If srcOffset < 0 OrElse
+                   CInt(ph.p_filesz) <= 0 OrElse
+                   srcOffset + CInt(ph.p_filesz) > _data.Length OrElse
+                   dstOffset < 0 OrElse
+                   dstOffset + CInt(ph.p_filesz) > output.Length Then
+                    Logger.LogToFile($"[ExtractElf] PT_SCE_VERSION bounds check failed — skipping segment (srcOff=0x{srcOffset:X} dstOff=0x{dstOffset:X} size=0x{ph.p_filesz:X})", LogLevel.Info)
+                    Exit For
+                End If
 
                 Array.Copy(_data, srcOffset, output, dstOffset, CInt(ph.p_filesz))
 

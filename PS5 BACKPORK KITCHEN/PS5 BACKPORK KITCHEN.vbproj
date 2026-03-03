@@ -12,10 +12,10 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>rajeshca911</Authors>
     <Description>Back ports ps5 homebrews</Description>
-    <AssemblyVersion>2.3.1.0</AssemblyVersion>
-    <FileVersion>2.3.1.0</FileVersion>
+    <AssemblyVersion>4.0.1.0</AssemblyVersion>
+    <FileVersion>4.0.1.0</FileVersion>
     <ApplicationIcon>backport.ico</ApplicationIcon>
-    <Version>2.3.1</Version>
+    <Version>4.0.1-beta</Version>
     <PackageProjectUrl>https://github.com/rajeshca911/PS5-BACKPORK-KITCHEN</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>backportIco.png</PackageIcon>
@@ -46,6 +46,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentFTP" Version="53.0.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3800.47" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="ReaLTaiizor" Version="3.8.1.5" />
     <PackageReference Include="SharpCompress" Version="0.44.5" />
@@ -91,6 +92,14 @@
 
   <ItemGroup>
     <Folder Include="log\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bundle Python scripts so the app finds them at runtime next to the exe -->
+    <Content Include="..\scripts\*.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>scripts\%(Filename)%(Extension)</Link>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

@@ -39,427 +39,201 @@ Public Class OperationModeForm
 
     ' Properties
     Private _signingOptions As SigningService.SigningOptions
-
     Private _selectedSigningType As SigningService.SigningType = SigningService.SigningType.FreeFakeSign
+    Private _gameFolder As String = ""
+    Private _lblGameTitle As Label
 
     Public Sub New()
         Me.AutoScaleMode = AutoScaleMode.Dpi
         Me.AutoScaleDimensions = New SizeF(96, 96)
-
         InitializeComponent()
         _signingOptions = New SigningService.SigningOptions()
     End Sub
 
-    'Private Sub InitializeComponent()
-    '    Me.Text = "Advanced Operations - ELF Signing"
-    '    Me.Size = New Size(700, 750)
-    '    Me.FormBorderStyle = FormBorderStyle.Sizable
-    '    Me.MinimumSize = New Size(700, 750)
-    '    Me.StartPosition = FormStartPosition.CenterParent
-    '    Me.Icon = Form1.Icon
+    ''' <summary>
+    ''' Sets the game folder to display cover art and game info in the header.
+    ''' Call before ShowDialog().
+    ''' </summary>
+    Public Sub SetGameContext(gameFolder As String, gameTitle As String)
+        _gameFolder = gameFolder
+        If _lblGameTitle Is Nothing Then Return
+        _lblGameTitle.Text = If(String.IsNullOrEmpty(gameTitle), IO.Path.GetFileName(gameFolder), gameTitle)
+    End Sub
 
-    '    Dim yPos = 15
-
-    '    ' Title label
-    '    Dim lblTitle As New Label With {
-    '        .Location = New Point(15, yPos),
-    '        .Size = New Size(650, 30),
-    '        .Text = "🔧 Advanced Signing Operations",
-    '        .Font = New Font("Segoe UI", 14, FontStyle.Bold),
-    '        .ForeColor = Color.DarkBlue
-    '    }
-    '    Me.Controls.Add(lblTitle)
-    '    yPos += 40
-
-    '    ' Operation Mode Group
-    '    grpOperationMode = New GroupBox With {
-    '        .Location = New Point(15, yPos),
-    '        .Size = New Size(655, 100),
-    '        .Text = "Operation Mode"
-    '    }
-
-    '    rdoSignOnly = New RadioButton With {
-    '        .Location = New Point(15, 25),
-    '        .Size = New Size(620, 22),
-    '        .Text = "🟢 Sign Only - Sign an ELF file to create SELF",
-    '        .Checked = True
-    '    }
-    '    AddHandler rdoSignOnly.CheckedChanged, AddressOf OperationMode_Changed
-
-    '    rdoDecryptSign = New RadioButton With {
-    '        .Location = New Point(15, 50),
-    '        .Size = New Size(620, 22),
-    '        .Text = "🟣 Decrypt Only - Extract ELF from SELF/BIN file",
-    '        .Enabled = True
-    '    }
-    '    AddHandler rdoDecryptSign.CheckedChanged, AddressOf OperationMode_Changed
-
-    '    rdoFullWorkflow = New RadioButton With {
-    '        .Location = New Point(15, 75),
-    '        .Size = New Size(620, 22),
-    '        .Text = "🔵 Full Workflow - Decrypt SELF, then re-sign back to SELF",
-    '        .Enabled = True
-    '    }
-    '    AddHandler rdoFullWorkflow.CheckedChanged, AddressOf OperationMode_Changed
-
-    '    grpOperationMode.Controls.AddRange({rdoSignOnly, rdoDecryptSign, rdoFullWorkflow})
-    '    Me.Controls.Add(grpOperationMode)
-    '    yPos += 110
-
-    '    ' File Selection Group
-    '    grpFileSelection = New GroupBox With {
-    '        .Location = New Point(15, yPos),
-    '        .Size = New Size(655, 120),
-    '        .Text = "File Selection"
-    '    }
-
-    '    Dim fileYPos = 25
-
-    '    ' Input file
-    '    lblInputFile = New Label With {
-    '        .Location = New Point(15, fileYPos),
-    '        .Size = New Size(80, 20),
-    '        .Text = "Input File:"
-    '    }
-    '    txtInputFile = New TextBox With {
-    '        .Location = New Point(100, fileYPos),
-    '        .Size = New Size(440, 23),
-    '        .PlaceholderText = "Select ELF file to sign..."
-    '    }
-    '    AddHandler txtInputFile.TextChanged, AddressOf InputFile_Changed
-
-    '    btnBrowseInput = New Button With {
-    '        .Location = New Point(550, fileYPos - 2),
-    '        .Size = New Size(90, 27),
-    '        .Text = "Browse...",
-    '        .BackColor = Color.LightSteelBlue,
-    '        .FlatStyle = FlatStyle.Flat
-    '    }
-    '    AddHandler btnBrowseInput.Click, AddressOf BtnBrowseInput_Click
-    '    fileYPos += 40
-
-    '    ' Output file
-    '    lblOutputFile = New Label With {
-    '        .Location = New Point(15, fileYPos),
-    '        .Size = New Size(80, 20),
-    '        .Text = "Output File:"
-    '    }
-    '    txtOutputFile = New TextBox With {
-    '        .Location = New Point(100, fileYPos),
-    '        .Size = New Size(440, 23),
-    '        .PlaceholderText = "Output SELF file path..."
-    '    }
-    '    AddHandler txtOutputFile.TextChanged, AddressOf ValidateInputs
-
-    '    btnBrowseOutput = New Button With {
-    '        .Location = New Point(550, fileYPos - 2),
-    '        .Size = New Size(90, 27),
-    '        .Text = "Browse...",
-    '        .BackColor = Color.LightSteelBlue,
-    '        .FlatStyle = FlatStyle.Flat
-    '    }
-    '    AddHandler btnBrowseOutput.Click, AddressOf BtnBrowseOutput_Click
-    '    fileYPos += 40
-
-    '    ' File info label
-    '    lblFileInfo = New Label With {
-    '        .Location = New Point(100, fileYPos),
-    '        .Size = New Size(540, 20),
-    '        .Font = New Font("Segoe UI", 8, FontStyle.Italic),
-    '        .ForeColor = Color.DarkGray,
-    '        .Text = "No file selected"
-    '    }
-
-    '    grpFileSelection.Controls.AddRange({
-    '        lblInputFile, txtInputFile, btnBrowseInput,
-    '        lblOutputFile, txtOutputFile, btnBrowseOutput,
-    '        lblFileInfo
-    '    })
-    '    Me.Controls.Add(grpFileSelection)
-    '    yPos += 130
-
-    '    ' Signing Settings Group
-    '    grpSigningSettings = New GroupBox With {
-    '        .Location = New Point(15, yPos),
-    '        .Size = New Size(655, 80),
-    '        .Text = "Signing Settings"
-    '    }
-
-    '    lblSigningType = New Label With {
-    '        .Location = New Point(15, 30),
-    '        .Size = New Size(90, 20),
-    '        .Text = "Signing Type:"
-    '    }
-    '    cmbSigningType = New ComboBox With {
-    '        .Location = New Point(110, 27),
-    '        .Size = New Size(300, 23),
-    '        .DropDownStyle = ComboBoxStyle.DropDownList
-    '    }
-    '    cmbSigningType.Items.AddRange(New String() {
-    '        "Free Fake Sign (Homebrew)",
-    '        "NPDRM (Content ID)",
-    '        "Custom Keys (Advanced)"
-    '    })
-    '    cmbSigningType.SelectedIndex = 0
-
-    '    btnAdvancedOptions = New Button With {
-    '        .Location = New Point(430, 25),
-    '        .Size = New Size(210, 28),
-    '        .Text = "⚙️ Advanced Options...",
-    '        .BackColor = Color.FromArgb(255, 215, 0),
-    '        .FlatStyle = FlatStyle.Flat,
-    '        .Font = New Font("Segoe UI", 9, FontStyle.Bold)
-    '    }
-    '    AddHandler btnAdvancedOptions.Click, AddressOf BtnAdvancedOptions_Click
-
-    '    grpSigningSettings.Controls.AddRange({lblSigningType, cmbSigningType, btnAdvancedOptions})
-    '    Me.Controls.Add(grpSigningSettings)
-    '    yPos += 90
-
-    '    ' Progress Group
-    '    grpProgress = New GroupBox With {
-    '        .Location = New Point(15, yPos),
-    '        .Size = New Size(655, 280),
-    '        .Text = "Progress & Log"
-    '    }
-
-    '    rtbLog = New RichTextBox With {
-    '        .Location = New Point(10, 25),
-    '        .Size = New Size(635, 210),
-    '        .ReadOnly = True,
-    '        .BackColor = Color.FromArgb(30, 30, 30),
-    '        .ForeColor = Color.LightGreen,
-    '        .Font = New Font("Consolas", 9),
-    '        .BorderStyle = BorderStyle.Fixed3D
-    '    }
-
-    '    progressBar = New ProgressBar With {
-    '        .Location = New Point(10, 245),
-    '        .Size = New Size(635, 25),
-    '        .Style = ProgressBarStyle.Continuous
-    '    }
-
-    '    grpProgress.Controls.AddRange({rtbLog, progressBar})
-    '    Me.Controls.Add(grpProgress)
-    '    yPos += 290
-
-    '    ' Action Buttons
-    '    btnStart = New Button With {
-    '        .Location = New Point(450, yPos),
-    '        .Size = New Size(110, 35),
-    '        .Text = "▶️ Start",
-    '        .BackColor = Color.FromArgb(144, 238, 144),
-    '        .FlatStyle = FlatStyle.Flat,
-    '        .Font = New Font("Segoe UI", 10, FontStyle.Bold),
-    '        .Enabled = False
-    '    }
-    '    AddHandler btnStart.Click, AddressOf BtnStart_Click
-
-    '    btnClose = New Button With {
-    '        .Location = New Point(570, yPos),
-    '        .Size = New Size(100, 35),
-    '        .Text = "Close",
-    '        .BackColor = Color.FromArgb(240, 128, 128),
-    '        .FlatStyle = FlatStyle.Flat,
-    '        .Font = New Font("Segoe UI", 10, FontStyle.Bold)
-    '    }
-    '    AddHandler btnClose.Click, Sub() Me.Close()
-
-    '    Me.Controls.AddRange({btnStart, btnClose})
-
-    '    ' Initial log message
-    '    LogMessage("🔧 Advanced Signing Operations ready. Select an ELF file to begin.", Color.Cyan)
-    'End Sub
     Private Sub InitializeComponent()
 
         Me.Text = "Advanced Operations - ELF Signing"
-        Me.MinimumSize = New Size(720, 720)
+        Me.Size = New Size(700, 750)
+        Me.MinimumSize = New Size(700, 750)
+        Me.FormBorderStyle = FormBorderStyle.Sizable
         Me.StartPosition = FormStartPosition.CenterParent
-        Me.Icon = Form1.Icon
 
-        ' ===== ROOT =====
-        Dim root As New TableLayoutPanel With {
-        .Dock = DockStyle.Fill,
-        .ColumnCount = 1,
-        .RowCount = 6,
-        .Padding = New Padding(12)
-    }
+        Try
+            Me.Icon = Form1.Icon
+        Catch
+        End Try
 
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' title
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' mode
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' files
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' signing
-        root.RowStyles.Add(New RowStyle(SizeType.Percent, 100)) ' log
-        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))   ' buttons
+        Dim yPos = 15
 
-        Me.Controls.Add(root)
-
-        ' ===== TITLE =====
+        ' ===== TITLE LABEL =====
         Dim lblTitle As New Label With {
-        .Text = "🔧 Advanced Signing Operations",
-        .Font = New Font("Segoe UI", 14, FontStyle.Bold),
-        .AutoSize = True,
-        .ForeColor = Color.DarkBlue
-    }
+            .Location = New Point(15, yPos),
+            .Size = New Size(650, 30),
+            .Text = "🔧 Advanced Signing Operations",
+            .Font = New Font("Segoe UI", 14, FontStyle.Bold),
+            .ForeColor = Color.DarkBlue
+        }
+        Me.Controls.Add(lblTitle)
 
-        root.Controls.Add(lblTitle)
+        ' Game title label (updated by SetGameContext)
+        _lblGameTitle = New Label With {
+            .Location = New Point(15, yPos + 30),
+            .Size = New Size(650, 20),
+            .Text = "",
+            .Font = New Font("Segoe UI", 9, FontStyle.Italic),
+            .ForeColor = Color.Gray
+        }
+        Me.Controls.Add(_lblGameTitle)
+        yPos += 55
 
-        ' ===== MODE GROUP =====
-        grpOperationMode = BuildModeGroup()
-        root.Controls.Add(grpOperationMode)
+        ' ===== OPERATION MODE =====
+        grpOperationMode = New GroupBox With {
+            .Location = New Point(15, yPos),
+            .Size = New Size(655, 100),
+            .Text = "Operation Mode"
+        }
 
-        ' ===== FILE GROUP =====
-        grpFileSelection = BuildFileGroup()
-        root.Controls.Add(grpFileSelection)
+        rdoSignOnly = New RadioButton With {
+            .Location = New Point(15, 25),
+            .Size = New Size(620, 22),
+            .Text = "🟢 Sign Only - Sign ELF → SELF",
+            .Checked = True
+        }
+        AddHandler rdoSignOnly.CheckedChanged, AddressOf OperationMode_Changed
 
-        ' ===== SIGNING GROUP =====
-        grpSigningSettings = BuildSigningGroup()
-        root.Controls.Add(grpSigningSettings)
+        rdoDecryptSign = New RadioButton With {
+            .Location = New Point(15, 50),
+            .Size = New Size(620, 22),
+            .Text = "🟣 Decrypt Only - SELF → ELF"
+        }
+        AddHandler rdoDecryptSign.CheckedChanged, AddressOf OperationMode_Changed
 
-        ' ===== PROGRESS GROUP =====
-        grpProgress = BuildProgressGroup()
-        root.Controls.Add(grpProgress)
+        rdoFullWorkflow = New RadioButton With {
+            .Location = New Point(15, 75),
+            .Size = New Size(620, 22),
+            .Text = "🔵 Full Workflow - Decrypt + Re-Sign"
+        }
+        AddHandler rdoFullWorkflow.CheckedChanged, AddressOf OperationMode_Changed
 
-        ' ===== BUTTON BAR =====
-        Dim buttonFlow As New FlowLayoutPanel With {
-        .Dock = DockStyle.Fill,
-        .FlowDirection = FlowDirection.RightToLeft,
-        .AutoSize = True
-    }
+        grpOperationMode.Controls.AddRange({rdoSignOnly, rdoDecryptSign, rdoFullWorkflow})
+        Me.Controls.Add(grpOperationMode)
+        yPos += 110
 
-        btnStart = New Button With {.Text = "▶️ Start", .Width = 120, .Height = 36, .Enabled = False}
-        btnClose = New Button With {.Text = "Close", .Width = 100, .Height = 36}
+        ' ===== FILE SELECTION =====
+        grpFileSelection = New GroupBox With {
+            .Location = New Point(15, yPos),
+            .Size = New Size(655, 120),
+            .Text = "File Selection"
+        }
 
+        lblInputFile = New Label With {.Location = New Point(15, 25), .Size = New Size(80, 20), .Text = "Input File:"}
+        txtInputFile = New TextBox With {.Location = New Point(100, 25), .Size = New Size(440, 23), .PlaceholderText = "Select ELF file to sign..."}
+        AddHandler txtInputFile.TextChanged, AddressOf InputFile_Changed
+
+        btnBrowseInput = New Button With {.Location = New Point(550, 23), .Size = New Size(90, 27), .Text = "Browse...", .BackColor = Color.LightSteelBlue, .FlatStyle = FlatStyle.Flat}
+        AddHandler btnBrowseInput.Click, AddressOf BtnBrowseInput_Click
+
+        lblOutputFile = New Label With {.Location = New Point(15, 65), .Size = New Size(80, 20), .Text = "Output File:"}
+        txtOutputFile = New TextBox With {.Location = New Point(100, 65), .Size = New Size(440, 23), .PlaceholderText = "Output SELF file path..."}
+        AddHandler txtOutputFile.TextChanged, AddressOf ValidateInputs
+
+        btnBrowseOutput = New Button With {.Location = New Point(550, 63), .Size = New Size(90, 27), .Text = "Browse...", .BackColor = Color.LightSteelBlue, .FlatStyle = FlatStyle.Flat}
+        AddHandler btnBrowseOutput.Click, AddressOf BtnBrowseOutput_Click
+
+        lblFileInfo = New Label With {.Location = New Point(100, 95), .Size = New Size(540, 20), .Font = New Font("Segoe UI", 8, FontStyle.Italic), .ForeColor = Color.DarkGray, .Text = "No file selected"}
+
+        grpFileSelection.Controls.AddRange({lblInputFile, txtInputFile, btnBrowseInput, lblOutputFile, txtOutputFile, btnBrowseOutput, lblFileInfo})
+        Me.Controls.Add(grpFileSelection)
+        yPos += 130
+
+        ' ===== SIGNING SETTINGS =====
+        grpSigningSettings = New GroupBox With {
+            .Location = New Point(15, yPos),
+            .Size = New Size(655, 80),
+            .Text = "Signing Settings"
+        }
+
+        lblSigningType = New Label With {.Location = New Point(15, 30), .Size = New Size(90, 20), .Text = "Signing Type:"}
+        cmbSigningType = New ComboBox With {.Location = New Point(110, 27), .Size = New Size(300, 23), .DropDownStyle = ComboBoxStyle.DropDownList}
+        cmbSigningType.Items.AddRange({"Free Fake Sign (Homebrew)", "NPDRM (Content ID)", "Custom Keys (Advanced)"})
+        cmbSigningType.SelectedIndex = 0
+
+        btnAdvancedOptions = New Button With {.Location = New Point(430, 25), .Size = New Size(210, 28), .Text = "⚙️ Advanced Options...", .BackColor = Color.FromArgb(255, 215, 0), .FlatStyle = FlatStyle.Flat, .Font = New Font("Segoe UI", 9, FontStyle.Bold)}
+        AddHandler btnAdvancedOptions.Click, AddressOf BtnAdvancedOptions_Click
+
+        grpSigningSettings.Controls.AddRange({lblSigningType, cmbSigningType, btnAdvancedOptions})
+        Me.Controls.Add(grpSigningSettings)
+        yPos += 90
+
+        ' ===== PROGRESS & LOG =====
+        grpProgress = New GroupBox With {
+            .Location = New Point(15, yPos),
+            .Size = New Size(655, 280),
+            .Text = "Progress & Log",
+            .Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Bottom
+        }
+
+        rtbLog = New RichTextBox With {
+            .Location = New Point(10, 25),
+            .Size = New Size(635, 210),
+            .ReadOnly = True,
+            .BackColor = Color.FromArgb(30, 30, 30),
+            .ForeColor = Color.LightGreen,
+            .Font = New Font("Consolas", 9),
+            .BorderStyle = BorderStyle.Fixed3D,
+            .Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right Or AnchorStyles.Bottom
+        }
+
+        progressBar = New ProgressBar With {
+            .Location = New Point(10, 245),
+            .Size = New Size(635, 25),
+            .Style = ProgressBarStyle.Continuous,
+            .Anchor = AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
+        }
+
+        grpProgress.Controls.AddRange({rtbLog, progressBar})
+        Me.Controls.Add(grpProgress)
+        yPos += 290
+
+        ' ===== ACTION BUTTONS =====
+        btnStart = New Button With {
+            .Location = New Point(450, yPos),
+            .Size = New Size(110, 35),
+            .Text = "▶️ Start",
+            .BackColor = Color.FromArgb(144, 238, 144),
+            .FlatStyle = FlatStyle.Flat,
+            .Font = New Font("Segoe UI", 10, FontStyle.Bold),
+            .Enabled = False,
+            .Anchor = AnchorStyles.Bottom Or AnchorStyles.Right
+        }
         AddHandler btnStart.Click, AddressOf BtnStart_Click
+
+        btnClose = New Button With {
+            .Location = New Point(570, yPos),
+            .Size = New Size(100, 35),
+            .Text = "Close",
+            .BackColor = Color.FromArgb(240, 128, 128),
+            .FlatStyle = FlatStyle.Flat,
+            .Font = New Font("Segoe UI", 10, FontStyle.Bold),
+            .Anchor = AnchorStyles.Bottom Or AnchorStyles.Right
+        }
         AddHandler btnClose.Click, Sub() Me.Close()
 
-        buttonFlow.Controls.AddRange({btnStart, btnClose})
-        root.Controls.Add(buttonFlow)
+        Me.Controls.AddRange({btnStart, btnClose})
 
         LogMessage("🔧 Advanced Signing Operations ready. Select an ELF file to begin.", Color.Cyan)
 
     End Sub
-
-    Private Function BuildModeGroup() As GroupBox
-
-        grpOperationMode = New GroupBox With {.Text = "Operation Mode", .AutoSize = True}
-
-        Dim flow As New FlowLayoutPanel With {.Dock = DockStyle.Fill, .FlowDirection = FlowDirection.TopDown, .AutoSize = True}
-
-        rdoSignOnly = New RadioButton With {.Text = "🟢 Sign Only - Sign ELF → SELF", .Checked = True, .AutoSize = True}
-        rdoDecryptSign = New RadioButton With {.Text = "🟣 Decrypt Only - SELF → ELF", .AutoSize = True}
-        rdoFullWorkflow = New RadioButton With {.Text = "🔵 Full Workflow - Decrypt + Re-Sign", .AutoSize = True}
-
-        AddHandler rdoSignOnly.CheckedChanged, AddressOf OperationMode_Changed
-        AddHandler rdoDecryptSign.CheckedChanged, AddressOf OperationMode_Changed
-        AddHandler rdoFullWorkflow.CheckedChanged, AddressOf OperationMode_Changed
-
-        flow.Controls.AddRange({rdoSignOnly, rdoDecryptSign, rdoFullWorkflow})
-        grpOperationMode.Controls.Add(flow)
-
-        Return grpOperationMode
-
-    End Function
-
-    Private Function BuildFileGroup() As GroupBox
-
-        grpFileSelection = New GroupBox With {.Text = "File Selection", .AutoSize = True}
-
-        Dim grid As New TableLayoutPanel With {
-        .Dock = DockStyle.Fill,
-        .ColumnCount = 3,
-        .AutoSize = True
-    }
-
-        grid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-        grid.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100))
-        grid.ColumnStyles.Add(New ColumnStyle(SizeType.AutoSize))
-
-        lblInputFile = New Label With {.Text = "Input File:", .AutoSize = True}
-        txtInputFile = New TextBox With {.Dock = DockStyle.Fill}
-        btnBrowseInput = New Button With {.Text = "Browse...", .Width = 100}
-
-        lblOutputFile = New Label With {.Text = "Output File:", .AutoSize = True}
-        txtOutputFile = New TextBox With {.Dock = DockStyle.Fill}
-        btnBrowseOutput = New Button With {.Text = "Browse...", .Width = 100}
-
-        lblFileInfo = New Label With {.Text = "No file selected", .AutoSize = True, .ForeColor = Color.Gray}
-
-        AddHandler txtInputFile.TextChanged, AddressOf InputFile_Changed
-        AddHandler txtOutputFile.TextChanged, AddressOf ValidateInputs
-        AddHandler btnBrowseInput.Click, AddressOf BtnBrowseInput_Click
-        AddHandler btnBrowseOutput.Click, AddressOf BtnBrowseOutput_Click
-
-        grid.Controls.Add(lblInputFile, 0, 0)
-        grid.Controls.Add(txtInputFile, 1, 0)
-        grid.Controls.Add(btnBrowseInput, 2, 0)
-
-        grid.Controls.Add(lblOutputFile, 0, 1)
-        grid.Controls.Add(txtOutputFile, 1, 1)
-        grid.Controls.Add(btnBrowseOutput, 2, 1)
-
-        grid.Controls.Add(lblFileInfo, 1, 2)
-
-        grpFileSelection.Controls.Add(grid)
-        Return grpFileSelection
-
-    End Function
-
-    Private Function BuildSigningGroup() As GroupBox
-
-        grpSigningSettings = New GroupBox With {.Text = "Signing Settings", .AutoSize = True}
-
-        Dim flow As New FlowLayoutPanel With {.Dock = DockStyle.Fill, .AutoSize = True}
-
-        lblSigningType = New Label With {.Text = "Signing Type:", .AutoSize = True}
-
-        cmbSigningType = New ComboBox With {.Width = 260, .DropDownStyle = ComboBoxStyle.DropDownList}
-        cmbSigningType.Items.AddRange({
-        "Free Fake Sign (Homebrew)",
-        "NPDRM (Content ID)",
-        "Custom Keys (Advanced)"
-    })
-        cmbSigningType.SelectedIndex = 0
-
-        btnAdvancedOptions = New Button With {.Text = "⚙️ Advanced Options..."}
-
-        AddHandler btnAdvancedOptions.Click, AddressOf BtnAdvancedOptions_Click
-
-        flow.Controls.AddRange({lblSigningType, cmbSigningType, btnAdvancedOptions})
-        grpSigningSettings.Controls.Add(flow)
-
-        Return grpSigningSettings
-
-    End Function
-
-    Private Function BuildProgressGroup() As GroupBox
-
-        grpProgress = New GroupBox With {.Text = "Progress & Log", .Dock = DockStyle.Fill}
-
-        Dim grid As New TableLayoutPanel With {.Dock = DockStyle.Fill, .RowCount = 2}
-        grid.RowStyles.Add(New RowStyle(SizeType.Percent, 100))
-        grid.RowStyles.Add(New RowStyle(SizeType.AutoSize))
-
-        rtbLog = New RichTextBox With {
-        .Dock = DockStyle.Fill,
-        .ReadOnly = True,
-        .BackColor = Color.FromArgb(30, 30, 30),
-        .ForeColor = Color.LightGreen,
-        .Font = New Font("Consolas", 9)
-    }
-
-        progressBar = New ProgressBar With {
-        .Dock = DockStyle.Fill,
-        .Height = 24
-    }
-
-        grid.Controls.Add(rtbLog, 0, 0)
-        grid.Controls.Add(progressBar, 0, 1)
-
-        grpProgress.Controls.Add(grid)
-        Return grpProgress
-
-    End Function
 
     Private Sub OperationMode_Changed(sender As Object, e As EventArgs)
         ' Update UI based on selected mode

@@ -9,203 +9,112 @@ Module selfutilmodule
         Return selfutilexe
     End Function
 
-    Public Function unpackfile(sourcefile As String, outputElfPath As String) As Boolean
+    Public Function unpackfile(sourceFile As String, outputElfPath As String) As Boolean
         Try
-            Dim selfutilexe As String = Getselfutilexepath()
-            If Not File.Exists(selfutilexe) Then
-                Logger.Log(Form1.rtbStatus, "SelfUtil.exe not found.", Color.Red)
+            If Not File.Exists(sourceFile) Then
+                Logger.Log(Form1.rtbStatus, "Source file not found.", Color.Red)
                 Return False
             End If
 
-            ' Ensure parent directory exists
             Dim outDir As String = Path.GetDirectoryName(outputElfPath)
             If Not Directory.Exists(outDir) Then
                 Directory.CreateDirectory(outDir)
             End If
 
             Logger.Log(Form1.rtbStatus, "*** Elf Unpack ***", Color.Blue)
-            Logger.Log(Form1.rtbStatus, $"Unpacking → {Path.GetFileName(outputElfPath)}", Color.Black)
+            Logger.Log(Form1.rtbStatus, $"Unpacking → {Path.GetFileName(sourceFile)}", Color.Black)
 
-            Dim startInfo As New ProcessStartInfo() With {
-            .FileName = selfutilexe,
-            .Arguments = $"--verbose --overwrite --input ""{sourcefile}"" --output ""{outputElfPath}""",
-            .UseShellExecute = False,
-            .CreateNoWindow = True,
-            .RedirectStandardOutput = True,
-            .RedirectStandardError = True
-        }
+            Dim fileData As Byte() = File.ReadAllBytes(sourceFile)
+            Dim fileType As String = GetFileType(fileData)
+            Dim elfBytes As Byte() = Nothing
 
-            Using process As Process = Process.Start(startInfo)
-                process.WaitForExit()
+            If fileType = "ELF" OrElse fileType = "StrippedELF" Then
+                Logger.Log(Form1.rtbStatus, "Input is already a decrypted ELF.", Color.DarkGreen)
+                elfBytes = fileData
 
-                Dim stdout = process.StandardOutput.ReadToEnd()
-                Dim stderr = process.StandardError.ReadToEnd()
+            ElseIf fileType = "SELF" Then
+                Logger.Log(Form1.rtbStatus, "SELF detected. Extracting...", Color.DarkBlue)
 
-                If Not String.IsNullOrWhiteSpace(stdout) Then
-                    Logger.Log(Form1.rtbStatus, stdout, Color.Blue)
+                ' Try internal SelfFile engine first
+                Try
+                    Dim ilogger As ISelfLogger = New ExistingLoggerAdapter(Form1.rtbStatus)
+                    Dim selfFile As New SelfFile(fileData, ilogger)
+                    elfBytes = selfFile.ExtractElf()
+                Catch ex As Exception
+                    Logger.Log(Form1.rtbStatus, $"Internal extraction failed: {ex.Message}", Color.DarkOrange)
+                    elfBytes = Nothing
+                End Try
+
+                ' Fallback to external selfutil if internal failed
+                If elfBytes Is Nothing OrElse elfBytes.Length < 64 Then
+                    Dim selfutilexe As String = Getselfutilexepath()
+                    If File.Exists(selfutilexe) Then
+                        Logger.Log(Form1.rtbStatus, "Trying external selfutil...", Color.DarkBlue)
+                        Return UnpackWithExternalTool(selfutilexe, sourceFile, outputElfPath)
+                    Else
+                        Logger.Log(Form1.rtbStatus, "SELF extraction failed (no external selfutil available)", Color.Red)
+                        Return False
+                    End If
                 End If
+            Else
+                Logger.Log(Form1.rtbStatus, $"Unknown or unsupported file type: {fileType}", Color.Red)
+                Return False
+            End If
 
-                If Not String.IsNullOrWhiteSpace(stderr) Then
-                    Logger.Log(Form1.rtbStatus, stderr, Color.Red)
-                End If
+            ' Safety check
+            If elfBytes Is Nothing OrElse elfBytes.Length < 64 Then
+                Logger.Log(Form1.rtbStatus, "Invalid or empty ELF output.", Color.Red)
+                Return False
+            End If
 
-                If process.ExitCode <> 0 Then
-                    Return False
-                End If
-            End Using
+            File.WriteAllBytes(outputElfPath, elfBytes)
 
-            ' Final safety check
             If Not File.Exists(outputElfPath) OrElse New FileInfo(outputElfPath).Length = 0 Then
-                Logger.Log(Form1.rtbStatus, "Output ELF missing or empty", Color.Red)
+                Logger.Log(Form1.rtbStatus, "Output ELF missing or empty.", Color.Red)
                 Return False
             End If
 
             Logger.Log(Form1.rtbStatus, "*** Elf Unpack End ***", Color.Blue)
             Return True
+
         Catch ex As Exception
             Logger.Log(Form1.rtbStatus, $"Error unpacking file: {ex.Message}", Color.Red)
             Return False
         End Try
     End Function
 
-    'Public Function unpackfile(sourceFile As String, outputElfPath As String) As Boolean
+    Private Function UnpackWithExternalTool(selfutilexe As String, sourceFile As String, outputElfPath As String) As Boolean
+        Try
+            Dim startInfo As New ProcessStartInfo() With {
+                .FileName = selfutilexe,
+                .Arguments = $"--verbose --overwrite --input ""{sourceFile}"" --output ""{outputElfPath}""",
+                .UseShellExecute = False,
+                .CreateNoWindow = True,
+                .RedirectStandardOutput = True,
+                .RedirectStandardError = True
+            }
 
-    '    Try
+            Using proc As Process = Process.Start(startInfo)
+                proc.WaitForExit()
+                Dim stdout = proc.StandardOutput.ReadToEnd()
+                Dim stderr = proc.StandardError.ReadToEnd()
+                If Not String.IsNullOrWhiteSpace(stdout) Then Logger.Log(Form1.rtbStatus, stdout, Color.Blue)
+                If Not String.IsNullOrWhiteSpace(stderr) Then Logger.Log(Form1.rtbStatus, stderr, Color.Red)
+                If proc.ExitCode <> 0 Then Return False
+            End Using
 
-    '        If Not File.Exists(sourceFile) Then
-    '            Logger.Log(Form1.rtbStatus, "Source SELF file not found.", Color.Red)
+            If Not File.Exists(outputElfPath) OrElse New FileInfo(outputElfPath).Length = 0 Then
+                Return False
+            End If
 
-    '            Return False
-    '        End If
+            Logger.Log(Form1.rtbStatus, "*** Elf Unpack End ***", Color.Blue)
+            Return True
+        Catch ex As Exception
+            Logger.Log(Form1.rtbStatus, $"External selfutil error: {ex.Message}", Color.Red)
+            Return False
+        End Try
+    End Function
 
-    '        Dim outDir As String = Path.GetDirectoryName(outputElfPath)
-    '        If Not Directory.Exists(outDir) Then
-    '            Directory.CreateDirectory(outDir)
-    '        End If
-
-    '        Logger.Log(Form1.rtbStatus, "*** Elf Unpack ***", Color.Blue)
-    '        Logger.Log(Form1.rtbStatus, $"Unpacking → {Path.GetFileName(outputElfPath)}", Color.Black)
-
-    '        ' Read SELF file
-    '        Dim selfData As Byte() = File.ReadAllBytes(sourceFile)
-
-    '        Dim fileType As String = GetFileType(selfData)
-    '        Dim elfBytes As Byte() = Nothing
-
-    '        ' Use your internal extraction engine
-    '        'Dim ilogger As ISelfLogger = New ExistingLoggerAdapter(Form1.rtbStatus)
-    '        'Dim selfFile As New SelfFile(selfData, ilogger)
-    '        If fileType = "ELF" Then
-
-    '            Logger.Log(Form1.rtbStatus, "Input is already a decrypted ELF.", Color.DarkGreen)
-
-    '            ' Just copy it
-    '            elfBytes = selfData
-
-    '        ElseIf fileType = "SELF" Then
-
-    '            Logger.Log(Form1.rtbStatus, "SELF detected. Extracting...", Color.DarkBlue)
-
-    '            Dim ilogger As ISelfLogger = New ExistingLoggerAdapter(Form1.rtbStatus)
-    '            Dim selfFile As New SelfFile(selfData, ilogger)
-
-    '            elfBytes = selfFile.ExtractElf()
-
-    '        Else
-
-    '            Logger.Log(Form1.rtbStatus, "Unknown file type.", Color.Red)
-    '            Return False
-
-    '        End If
-
-    '        'Dim elfBytes As Byte() = selfFile.ExtractElf()
-
-    '        '' Write ELF
-    '        'File.WriteAllBytes(outputElfPath, elfBytes)
-
-    '        '' Final validation
-    '        'If Not File.Exists(outputElfPath) OrElse New FileInfo(outputElfPath).Length = 0 Then
-    '        '    Logger.Log(Form1.rtbStatus, "Output ELF missing or empty", Color.Red)
-    '        '    Return False
-    '        'End If
-
-    '        'Logger.Log(Form1.rtbStatus, "*** Elf Unpack End ***", Color.Blue)
-    '        'Return True
-
-    '    Catch ex As Exception
-    '        Logger.Log(Form1.rtbStatus, $"Error unpacking file: {ex.Message}", Color.Red)
-    '        Return False
-    ''    End Try
-
-    'End Function
-    'Public Function unpackfile(sourceFile As String, outputElfPath As String) As Boolean
-
-    '    Try
-
-    '        If Not File.Exists(sourceFile) Then
-    '            Logger.Log(Form1.rtbStatus, "Source file not found.", Color.Red)
-    '            Return False
-    '        End If
-
-    '        Dim outDir As String = Path.GetDirectoryName(outputElfPath)
-    '        If Not Directory.Exists(outDir) Then
-    '            Directory.CreateDirectory(outDir)
-    '        End If
-
-    '        Logger.Log(Form1.rtbStatus, "*** Elf Unpack ***", Color.Blue)
-    '        Logger.Log(Form1.rtbStatus, $"Unpacking → {Path.GetFileName(sourceFile)}", Color.Black)
-
-    '        Dim fileData As Byte() = File.ReadAllBytes(sourceFile)
-    '        Dim fileType As String = GetFileType(fileData)
-    '        ElfLogger.LogElfDetailsToFile(fileData, Path.GetFileName(sourceFile))
-    '        Dim elfBytes As Byte() = Nothing
-
-    '        'If fileType = "ELF" Then
-    '        If fileType = "ELF" OrElse fileType = "StrippedELF" Then
-
-    '            Logger.Log(Form1.rtbStatus, "Input is already a decrypted ELF.", Color.DarkGreen)
-    '            elfBytes = fileData
-
-    '        ElseIf fileType = "SELF" Then
-
-    '            Logger.Log(Form1.rtbStatus, "SELF detected. Extracting...", Color.DarkBlue)
-
-    '            Dim ilogger As ISelfLogger = New ExistingLoggerAdapter(Form1.rtbStatus)
-    '            Dim selfFile As New SelfFile(fileData, ilogger)
-
-    '            elfBytes = selfFile.ExtractElf()
-
-    '        Else
-
-    '            Logger.Log(Form1.rtbStatus, "Unknown or unsupported file type.", Color.Red)
-    '            Return False
-
-    '        End If
-
-    '        ' Safety check
-    '        If elfBytes Is Nothing OrElse elfBytes.Length < 64 Then
-    '            Logger.Log(Form1.rtbStatus, "Invalid or empty ELF output.", Color.Red)
-    '            Return False
-    '        End If
-
-    '        ' Write output
-    '        File.WriteAllBytes(outputElfPath, elfBytes)
-
-    '        ' Final validation
-    '        If Not File.Exists(outputElfPath) OrElse New FileInfo(outputElfPath).Length = 0 Then
-    '            Logger.Log(Form1.rtbStatus, "Output ELF missing or empty.", Color.Red)
-    '            Return False
-    '        End If
-
-    '        Logger.Log(Form1.rtbStatus, "*** Elf Unpack End ***", Color.Blue)
-    '        Return True
-
-    '    Catch ex As Exception
-    '        Logger.Log(Form1.rtbStatus, $"Error unpacking file: {ex.Message}", Color.Red)
-    '        Return False
-    '    End Try
-
-    'End Function
 
     Public Function GetFileType(data As Byte()) As String
 
