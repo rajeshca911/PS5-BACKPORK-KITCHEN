@@ -1,4 +1,15 @@
 
+# ⚠️ Project Discontinued
+
+**PS5 BackPork Kitchen is no longer actively maintained.**
+
+Due to internal circumstances, active development and support for PS5 BackPork Kitchen have officially ended.
+We recommend users explore alternative backport tools that may be available in the community.
+
+Thank you for your support and understanding.
+
+---
+
 # PS5-BACKPORK-KITCHEN
 
 Simplify your PS5 homebrew workflow with **PS5 BackPork Kitchen** — a practical backporting utility that bridges the gap between modern game binaries and lower firmware versions.
